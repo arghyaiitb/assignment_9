@@ -1,0 +1,33 @@
+# Core PyTorch ecosystem (latest versions - 2025)
+torch>=2.5.0
+torchvision>=0.20.0
+
+# Progress bars and visualization
+tqdm>=4.67.0
+matplotlib>=3.9.0
+
+# Model utilities
+torchinfo>=1.8.0  # Modern replacement for torchsummary
+
+# Image augmentation and processing (Latest Albumentations 2.0.8)
+albumentations==2.0.8  # Major version with breaking changes - FIXED for 2.0.8 API
+opencv-python>=4.10.0
+numpy>=1.26.0,<2.0.0  # Albumentations 2.0 requires numpy<2.0
+Pillow>=11.0.0
+pyyaml>=6.0  # Required by albumentations 2.0
+
+# API Changes in Albumentations 2.0.8 (Fixed in train.py):
+# - RandomResizedCrop: height/width -> size=(height, width)
+# - CoarseDropout: max_holes/min_holes -> num_holes_range
+# - CoarseDropout: max_height/min_height/max_width/min_width -> hole_height_range/hole_width_range
+
+# Scientific computing and data processing
+scipy>=1.14.0
+
+# Hugging Face datasets for ImageNet-1K (ILSVRC/imagenet-1k)
+datasets>=2.14.0
+huggingface_hub>=0.20.0
+# Required for streaming and processing large datasets
+pyarrow>=14.0.0
+
+# Optional: Visualization libraries
