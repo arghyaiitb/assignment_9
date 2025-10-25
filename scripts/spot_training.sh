@@ -169,8 +169,8 @@ run_training() {
         --weight-decay 1e-4 \
         --label-smoothing 0.1 \
         --gradient-clip 1.0 \
-        --cutmix-prob 0.0 \
-        --mixup-alpha 0.0 \
+        --cutmix-prob 0.3 \
+        --mixup-alpha 0.2 \
         --progressive-resize \
         --use-ema \
         --compile \

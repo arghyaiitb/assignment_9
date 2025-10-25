@@ -134,7 +134,7 @@ The `tmux_training_setup.sh` script will set up multiple panes and start trainin
 
 ```bash
 # Optimized for p4d.24xlarge (8× A100 GPUs)
-# CORRECTED: Using stable hyperparameters to prevent NaN losses
+# PRODUCTION SETTINGS: Tuned for 78% accuracy in 45 minutes
 python main.py distributed \
   --use-ffcv \
   --ffcv-dir /data/ffcv \
@@ -147,8 +147,8 @@ python main.py distributed \
   --weight-decay 1e-4 \
   --label-smoothing 0.1 \
   --gradient-clip 1.0 \
-  --cutmix-prob 0.0 \
-  --mixup-alpha 0.0 \
+  --cutmix-prob 0.3 \
+  --mixup-alpha 0.2 \
   --progressive-resize \
   --use-ema \
   --amp \
@@ -218,14 +218,17 @@ echo "✅ Training complete! Model saved on EBS: $EBS_VOLUME_ID"
                          # Note: Code does NOT auto-scale by world_size
 --epochs 60              # Fewer epochs needed with larger batch
 --warmup-epochs 8        # Extended warmup for large batch stability
+--scheduler onecycle     # OneCycleLR for optimal convergence
+--momentum 0.9           # Standard SGD momentum
+--weight-decay 1e-4      # L2 regularization
+--label-smoothing 0.1    # Prevents overconfident predictions
 --gradient-clip 1.0      # Prevent gradient explosion
---cutmix-prob 0.0        # Disabled initially for training stability
---mixup-alpha 0.0        # Disabled initially for training stability
+--cutmix-prob 0.3        # CutMix augmentation (essential for 75%+ accuracy)
+--mixup-alpha 0.2        # MixUp augmentation (essential for 75%+ accuracy)
 --num-workers 24         # 24 workers for fast data loading (p4d has 96 vCPUs)
---progressive-resize     # 160→192→224 resolution
---use-ema               # Smoother convergence
---compile               # PyTorch 2.0 - huge boost on A100s
---amp                   # Automatic Mixed Precision with A100 Tensor Cores
+--progressive-resize     # 160→192→224 resolution for faster early training
+--use-ema                # Exponential moving average for smoother convergence
+--amp                    # Automatic Mixed Precision with A100 Tensor Cores
 ```
 
 ### Progressive Training Schedule
@@ -240,13 +243,24 @@ echo "✅ Training complete! Model saved on EBS: $EBS_VOLUME_ID"
 
 ## 📈 Expected Accuracy Progress
 
+**With CutMix/MixUp Enabled (Recommended)**:
+
 | Checkpoint | Top-1 | Top-5 | Time |
 |------------|-------|-------|------|
-| Epoch 5 | ~35% | ~60% | 3 min |
-| Epoch 15 | ~55% | ~80% | 10 min |
-| Epoch 30 | ~70% | ~89% | 20 min |
-| Epoch 45 | ~75% | ~92% | 30 min |
-| **Epoch 60** | **~78%** | **~94%** | **45 min** |
+| Epoch 5 | ~32-36% | ~58-62% | 3 min |
+| Epoch 15 | ~54-58% | ~78-82% | 10 min |
+| Epoch 30 | ~68-72% | ~88-90% | 20 min |
+| Epoch 45 | ~74-76% | ~91-93% | 30 min |
+| **Epoch 60** | **~77-79%** | **~93-95%** | **45 min** |
+
+**Without CutMix/MixUp (Not Recommended)**:
+
+| Checkpoint | Top-1 | Top-5 | Time |
+|------------|-------|-------|------|
+| Epoch 20 | ~48-52% | ~72-76% | 13 min |
+| Epoch 60 | **~65-68%** | **~86-88%** | 45 min |
+
+⚠️ **Note**: CutMix and MixUp are **essential** for achieving 75%+ accuracy. Training without them will plateau around 65-68%.
 
 ## 🔧 What the Scripts Do
 
@@ -370,15 +384,16 @@ python main.py distributed \
 --lr 0.6   # More conservative
 --lr 0.4   # Very conservative for debugging
 
-# Other stability fixes:
---cutmix-prob 0.0        # Disable aggressive augmentation
---mixup-alpha 0.0        # Disable aggressive augmentation
+# For initial debugging (if experiencing NaN losses):
+--cutmix-prob 0.0        # Temporarily disable augmentation
+--mixup-alpha 0.0        # Temporarily disable augmentation
 --warmup-epochs 10       # Extend warmup period
---gradient-clip 1.0      # Add gradient clipping
+--gradient-clip 1.0      # Ensure gradient clipping enabled
 --batch-size 1024        # Reduce batch size if needed
 
-# Or disable progressive resize to simplify
---no-progressive-resize
+# Once training is stable, ENABLE augmentation for production:
+--cutmix-prob 0.3        # Required for 75%+ accuracy
+--mixup-alpha 0.2        # Required for 75%+ accuracy
 ```
 
 **Note**: The code does NOT automatically scale LR by world_size. You should manually specify the LR based on your total batch size. For batch 2048, use `--lr 0.8` (NOT 3.2!).

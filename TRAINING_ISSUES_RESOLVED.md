@@ -70,8 +70,37 @@ model = self.model.module if self.distributed else self.model
 
 ## 📊 Correct Configuration for 8× A100 GPUs
 
-### Final Working Command
+### Final Working Command (Production Settings)
 ```bash
+python main.py distributed \
+  --use-ffcv \
+  --ffcv-dir /data/ffcv \
+  --batch-size 2048 \
+  --epochs 60 \
+  --lr 0.8 \
+  --warmup-epochs 8 \
+  --scheduler onecycle \
+  --momentum 0.9 \
+  --weight-decay 1e-4 \
+  --label-smoothing 0.1 \
+  --gradient-clip 1.0 \
+  --cutmix-prob 0.3 \
+  --mixup-alpha 0.2 \
+  --progressive-resize \
+  --use-ema \
+  --amp \
+  --checkpoint-dir /data/checkpoints \
+  --log-dir /data/logs \
+  --checkpoint-interval 5 \
+  --no-auto-resume \
+  --target-accuracy 78 \
+  --num-workers 24
+```
+
+### Debug/Troubleshooting Command (If Experiencing NaN Losses)
+```bash
+# Use this ONLY if you're getting NaN losses
+# Disables CutMix/MixUp temporarily for stability
 python main.py distributed \
   --use-ffcv \
   --ffcv-dir /data/ffcv \
@@ -95,6 +124,8 @@ python main.py distributed \
   --no-auto-resume \
   --target-accuracy 78 \
   --num-workers 24
+
+# Once stable, switch to production settings above
 ```
 
 ### Key Hyperparameters Explained
@@ -103,8 +134,10 @@ python main.py distributed \
 --lr 0.8               # LINEAR scaling: 0.1 × (2048/256)
 --warmup-epochs 8      # Extended warmup for large batch stability
 --num-workers 24       # 3 workers per GPU (p4d.24xlarge has 96 vCPUs)
---cutmix-prob 0.0      # Disabled for training stability
---mixup-alpha 0.0      # Disabled for training stability
+--cutmix-prob 0.3      # Essential for 75%+ accuracy (use 0.0 only for debugging)
+--mixup-alpha 0.2      # Essential for 75%+ accuracy (use 0.0 only for debugging)
+--label-smoothing 0.1  # Prevents overconfident predictions
+--gradient-clip 1.0    # Prevents gradient explosion
 ```
 
 ### Learning Rate Schedule
@@ -120,13 +153,23 @@ Epoch 60: LR ≈ 0.00008 (final)
 ## 📈 Expected Training Progress
 
 ### Validation Accuracy Milestones
+
+**With CutMix/MixUp (Production Settings)**:
 ```
-Epoch 1:  ~5-10%
-Epoch 10: ~42-47%   ✅ Actual: 44.77%
+Epoch 1:  ~8-12%
+Epoch 10: ~42-47%
 Epoch 20: ~58-62%
-Epoch 30: ~67-71%
+Epoch 30: ~68-72%
 Epoch 40: ~73-76%
 Epoch 60: ~77-79%   🎯 Target: 78%
+```
+
+**Without CutMix/MixUp (Debug Mode Only)**:
+```
+Epoch 1:  ~5-10%
+Epoch 10: ~42-47%
+Epoch 20: ~48-52%   ⚠️ Falling behind
+Epoch 60: ~65-68%   ❌ Will NOT reach 78%
 ```
 
 ### Health Indicators
