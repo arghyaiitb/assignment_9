@@ -9,7 +9,7 @@ torchaudio>=2.5.0  # Audio extensions (required for full PyTorch install)
 # Fast data loading (CRITICAL for ImageNet training speed)
 ffcv>=1.0.0  # 3-5x faster data loading than standard PyTorch
 numba>=0.60.0  # JIT compilation support for FFCV
-# Optional: cupy-cuda12x>=13.3.0  # GPU arrays for FFCV (install separately if needed)
+cupy-cuda12x>=13.3.0  # GPU arrays for FFCV (required for GPU transforms)
 
 # Datasets and model hub
 datasets>=3.2.0  # HuggingFace datasets for ImageNet-1K download
