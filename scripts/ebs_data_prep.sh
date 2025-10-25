@@ -168,15 +168,15 @@ fi
 # Step 7: Clone project repository
 echo ""
 echo "Step 7: Checking project repository..."
-if [ ! -d "$MOUNT_POINT/resnet50-imagenet" ]; then
+if [ ! -d "$MOUNT_POINT/assignment_9" ]; then
     print_status "Cloning project repository..."
     cd $MOUNT_POINT
-    git clone https://github.com/yourusername/resnet50-imagenet.git || {
+    git clone https://github.com/arghyaiitb/assignment_9.git || {
         print_warning "Could not clone repo. Creating project directory..."
-        mkdir -p $MOUNT_POINT/resnet50-imagenet
+        mkdir -p $MOUNT_POINT/assignment_9
     }
 fi
-cd $MOUNT_POINT/resnet50-imagenet
+cd $MOUNT_POINT/assignment_9
 
 # Step 8: Check HuggingFace authentication
 echo ""
@@ -187,7 +187,7 @@ if ! huggingface-cli whoami &> /dev/null; then
     echo "You need this to download ImageNet."
     echo ""
     echo "After logging in, continue with data conversion:"
-    echo "  cd $MOUNT_POINT/resnet50-imagenet"
+    echo "  cd $MOUNT_POINT/assignment_9"
     echo "  python3 main.py convert-ffcv --ffcv-dir $FFCV_DIR"
 else
     print_status "HuggingFace authentication OK"

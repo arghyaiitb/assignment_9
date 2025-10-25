@@ -106,8 +106,8 @@ sudo chown ubuntu:ubuntu /data
 
 # 3. Clone your project (or download the script)
 cd /data
-git clone https://github.com/yourusername/resnet50-imagenet.git
-cd resnet50-imagenet
+git clone https://github.com/arghyaiitb/assignment_9.git
+cd assignment_9
 
 # 4. Run the automated setup script
 bash scripts/ebs_data_prep.sh
@@ -126,7 +126,7 @@ huggingface-cli login
 tmux new -s ffcv
 
 # 3. Convert ImageNet to FFCV (this is the main task - takes ~1 hour)
-cd /data/resnet50-imagenet
+cd /data/assignment_9
 python main.py convert-ffcv --ffcv-dir /data/ffcv
 
 # Monitor progress in another tmux pane (Ctrl-B %)

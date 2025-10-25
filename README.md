@@ -677,6 +677,6 @@ If you use this code, please cite:
 @misc{resnet50-imagenet-2025,
   title={Efficient ResNet-50 Training on ImageNet},
   year={2025},
-  url={https://github.com/yourusername/resnet50-imagenet}
+  url={https://github.com/arghyaiitb/assignment_9}
 }
 ```

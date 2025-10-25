@@ -6,7 +6,7 @@ set -e
 
 # Configuration
 SESSION_NAME=${SESSION_NAME:-resnet_training}
-PROJECT_DIR=${PROJECT_DIR:-~/resnet50-imagenet}
+PROJECT_DIR=${PROJECT_DIR:-~/assignment_9}
 FFCV_DIR=${FFCV_DIR:-/data/ffcv}
 LOG_DIR=${LOG_DIR:-./logs}
 
