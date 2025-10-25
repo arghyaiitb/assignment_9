@@ -55,6 +55,7 @@ class Trainer:
         self.best_accuracy = 0.0
         self.current_epoch = 0
         self.start_epoch = 0  # For resuming training
+        self.first_batch_in_epoch = True  # Track first batch for scheduler fix
 
         # Setup checkpoint and log directories from config or environment
         self.checkpoint_dir = Path(
@@ -270,6 +271,7 @@ class Trainer:
                 div_factor=25,
                 final_div_factor=10000,
                 anneal_strategy="cos",
+                last_epoch=-1,  # Important: start from -1 to avoid the warning
             )
             self.logger.info(
                 f"Using OneCycleLR scheduler with {warmup_epochs} warmup epochs"
@@ -317,6 +319,7 @@ class Trainer:
     def train_epoch(self) -> float:
         """Train for one epoch."""
         self.model.train()
+        self.first_batch_in_epoch = True  # Reset flag at start of epoch
 
         total_loss = 0.0
         correct = 0
@@ -401,7 +404,12 @@ class Trainer:
 
             # Update scheduler (must be after optimizer.step())
             if self.scheduler is not None:
-                self.scheduler.step()
+                # OneCycleLR needs to be stepped after each batch
+                # Skip the very first step to avoid warning about calling before optimizer.step()
+                if not (self.first_batch_in_epoch and batch_idx == 0 and self.current_epoch == 0):
+                    self.scheduler.step()
+                elif batch_idx == 0 and self.current_epoch == 0:
+                    self.first_batch_in_epoch = False
 
             # Update EMA
             if self.ema_model is not None and batch_idx % 10 == 0:
@@ -471,8 +479,14 @@ class Trainer:
                     images = images.to(self.device, non_blocking=True)
                     labels = labels.to(self.device, non_blocking=True)
 
-                outputs = model(images)
-                loss = F.cross_entropy(outputs, labels)
+                # Use autocast for validation to match training precision
+                if self.scaler is not None:
+                    with autocast('cuda'):
+                        outputs = model(images)
+                        loss = F.cross_entropy(outputs, labels)
+                else:
+                    outputs = model(images)
+                    loss = F.cross_entropy(outputs, labels)
 
                 total_loss += loss.item()
                 _, predicted = outputs.max(1)
