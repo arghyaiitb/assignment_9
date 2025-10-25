@@ -134,22 +134,30 @@ The `tmux_training_setup.sh` script will set up multiple panes and start trainin
 
 ```bash
 # Optimized for p4d.24xlarge (8× A100 GPUs)
+# CORRECTED: Using stable hyperparameters to prevent NaN losses
 python main.py distributed \
   --use-ffcv \
   --ffcv-dir /data/ffcv \
   --batch-size 2048 \
   --epochs 60 \
-  --lr 3.2 \
-  --warmup-epochs 5 \
+  --lr 0.8 \
+  --warmup-epochs 8 \
+  --scheduler onecycle \
+  --momentum 0.9 \
+  --weight-decay 1e-4 \
+  --label-smoothing 0.1 \
+  --gradient-clip 1.0 \
+  --cutmix-prob 0.0 \
+  --mixup-alpha 0.0 \
   --progressive-resize \
   --use-ema \
-  --compile \
   --amp \
   --checkpoint-dir /data/checkpoints \
   --log-dir /data/logs \
   --checkpoint-interval 5 \
   --auto-resume \
-  --target-accuracy 78
+  --target-accuracy 78 \
+  --num-workers 8
 ```
 
 ### Step 5: Monitor Training
@@ -205,11 +213,14 @@ echo "✅ Training complete! Model saved on EBS: $EBS_VOLUME_ID"
 
 ```python
 --batch-size 2048        # 256 per GPU × 8 GPUs
---lr 3.2                 # Scaled for batch size (0.1 × sqrt(32) × 2)
-                         # Base LR 0.1 for batch 64 → 3.2 for batch 2048
+--lr 0.8                 # LINEAR scaling: 0.1 × (2048/256) = 0.8
+                         # Base LR 0.1 for batch 256 → 0.8 for batch 2048
                          # Note: Code does NOT auto-scale by world_size
 --epochs 60              # Fewer epochs needed with larger batch
---warmup-epochs 5        # Critical for large batch training
+--warmup-epochs 8        # Extended warmup for large batch stability
+--gradient-clip 1.0      # Prevent gradient explosion
+--cutmix-prob 0.0        # Disabled initially for training stability
+--mixup-alpha 0.0        # Disabled initially for training stability
 --progressive-resize     # 160→192→224 resolution
 --use-ema               # Smoother convergence
 --compile               # PyTorch 2.0 - huge boost on A100s
@@ -349,25 +360,27 @@ python main.py distributed \
 # - Training loss INCREASING (e.g., 5.98 → 6.90)
 # - Training accuracy DECREASING (e.g., 5% → 0.1%)
 # - Validation loss = NaN
-# - LR shown as > 10 in logs
+# - LR shown as > 1.0 during early epochs
 
-# ✅ FIX: Reduce learning rate significantly
---lr 0.4   # Start with 1/8 of recommended
---lr 0.8   # Then try 1/4
---lr 1.6   # Then try 1/2
---lr 3.2   # Full recommended (if above work)
+# ✅ CORRECT LEARNING RATE for batch 2048:
+--lr 0.8   # Standard linear scaling: 0.1 × (2048/256)
+
+# If still experiencing issues, try:
+--lr 0.6   # More conservative
+--lr 0.4   # Very conservative for debugging
+
+# Other stability fixes:
+--cutmix-prob 0.0        # Disable aggressive augmentation
+--mixup-alpha 0.0        # Disable aggressive augmentation
+--warmup-epochs 10       # Extend warmup period
+--gradient-clip 1.0      # Add gradient clipping
+--batch-size 1024        # Reduce batch size if needed
 
 # Or disable progressive resize to simplify
 --no-progressive-resize
-
-# Or reduce batch size
---batch-size 1024  # Instead of 2048
-
-# Check data augmentation isn't too aggressive
---cutmix-prob 0.0  # Disable if causing issues
 ```
 
-**Note**: The code does NOT automatically scale LR by world_size. You should manually specify the LR based on your total batch size. For batch 2048, use `--lr 3.2`.
+**Note**: The code does NOT automatically scale LR by world_size. You should manually specify the LR based on your total batch size. For batch 2048, use `--lr 0.8` (NOT 3.2!).
 
 ## 📋 Training Checklist
 

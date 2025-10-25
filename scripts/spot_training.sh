@@ -20,7 +20,7 @@ NC='\033[0m' # No Color
 # Training parameters (optimized for p4d.24xlarge with 8× A100s)
 BATCH_SIZE=${BATCH_SIZE:-2048}  # 256 per GPU × 8 GPUs
 EPOCHS=${EPOCHS:-60}            # Fewer epochs with larger batch
-LR=${LR:-3.2}                   # Linear scaling: 0.1 × 32
+LR=${LR:-0.8}                   # Linear scaling: 0.1 × (2048/256) = 0.8
 TARGET_ACCURACY=${TARGET_ACCURACY:-78.0}
 
 echo -e "${BLUE}=================================================="
@@ -156,7 +156,14 @@ run_training() {
         --batch-size $BATCH_SIZE \
         --epochs $EPOCHS \
         --lr $LR \
-        --warmup-epochs 5 \
+        --warmup-epochs 8 \
+        --scheduler onecycle \
+        --momentum 0.9 \
+        --weight-decay 1e-4 \
+        --label-smoothing 0.1 \
+        --gradient-clip 1.0 \
+        --cutmix-prob 0.0 \
+        --mixup-alpha 0.0 \
         --progressive-resize \
         --use-ema \
         --compile \
@@ -165,7 +172,8 @@ run_training() {
         --log-dir $LOG_DIR \
         --checkpoint-interval 5 \
         --auto-resume \
-        --target-accuracy $TARGET_ACCURACY"
+        --target-accuracy $TARGET_ACCURACY \
+        --num-workers 8"
     
     echo -e "${BLUE}Starting training with command:${NC}"
     echo "$TRAINING_CMD"

@@ -215,8 +215,15 @@ TRAINING_CMD="python3 main.py $TRAINING_MODE \
     --ffcv-dir $FFCV_DIR \
     --batch-size $BATCH_SIZE \
     --epochs $EPOCHS \
-    --lr 3.2 \
-    --warmup-epochs 5 \
+    --lr 0.8 \
+    --warmup-epochs 8 \
+    --scheduler onecycle \
+    --momentum 0.9 \
+    --weight-decay 1e-4 \
+    --label-smoothing 0.1 \
+    --gradient-clip 1.0 \
+    --cutmix-prob 0.0 \
+    --mixup-alpha 0.0 \
     --progressive-resize \
     --use-ema \
     --compile \
@@ -227,6 +234,7 @@ TRAINING_CMD="python3 main.py $TRAINING_MODE \
     --auto-resume \
     --budget-hours $BUDGET_HOURS \
     --target-accuracy 78 \
+    --num-workers 8 \
     $RESUME_FLAG"
 
 # Ask for confirmation

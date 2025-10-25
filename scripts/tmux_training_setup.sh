@@ -77,11 +77,23 @@ TRAINING_CMD="python main.py $TRAINING_MODE \\
     --ffcv-dir $FFCV_DIR \\
     --batch-size $BATCH_SIZE \\
     --epochs $EPOCHS \\
+    --lr 0.8 \\
+    --warmup-epochs 8 \\
+    --scheduler onecycle \\
+    --momentum 0.9 \\
+    --weight-decay 1e-4 \\
+    --label-smoothing 0.1 \\
+    --gradient-clip 1.0 \\
+    --cutmix-prob 0.0 \\
+    --mixup-alpha 0.0 \\
     --progressive-resize \\
     --use-ema \\
     --compile \\
+    --amp \\
     --checkpoint-interval 5 \\
-    --auto-resume"
+    --auto-resume \\
+    --target-accuracy 78 \\
+    --num-workers 8"
 
 echo -e "${GREEN}Creating tmux session: $SESSION_NAME${NC}"
 echo "Training command: $TRAINING_MODE mode with batch_size=$BATCH_SIZE"
