@@ -501,8 +501,13 @@ class Trainer:
             return accuracy, avg_loss
 
         # Only rank 0 (or non-distributed) performs actual validation
-        model = self.ema_model if self.ema_model is not None else self.model
+        # TEMPORARY FIX: Don't use EMA for validation until it's properly initialized
+        # model = self.ema_model if self.ema_model is not None else self.model
+        model = self.model.module if self.distributed else self.model
         model.eval()
+
+        if self.rank == 0 and self.ema_model is not None:
+            self.logger.info("🔍 DEBUG: Using regular model for validation (not EMA)")
 
         total_loss = 0.0
         correct = 0
