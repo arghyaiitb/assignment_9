@@ -112,7 +112,9 @@ class Trainer:
     def _setup_logging(self):
         """Setup logging configuration."""
         # DEBUG: Enable INFO logging for ALL ranks to diagnose the hang
-        log_level = logging.INFO  # Was: logging.INFO if self.rank == 0 else logging.WARNING
+        log_level = (
+            logging.INFO
+        )  # Was: logging.INFO if self.rank == 0 else logging.WARNING
 
         # Create a persistent log file name (append mode for spot instances)
         # Use the node rank in filename for multi-node setups
@@ -536,13 +538,17 @@ class Trainer:
             self.logger.info(f"[DEBUG][Rank {self.rank}] all_reduce completed")
 
             # Extract aggregated values
-            self.logger.info(f"[DEBUG][Rank {self.rank}] Extracting metrics from tensor")
+            self.logger.info(
+                f"[DEBUG][Rank {self.rank}] Extracting metrics from tensor"
+            )
             correct = metrics[0].item()
             self.logger.info(f"[DEBUG][Rank {self.rank}] Extracted correct: {correct}")
             total = metrics[1].item()
             self.logger.info(f"[DEBUG][Rank {self.rank}] Extracted total: {total}")
             total_loss = metrics[2].item()
-            self.logger.info(f"[DEBUG][Rank {self.rank}] Extracted total_loss: {total_loss}")
+            self.logger.info(
+                f"[DEBUG][Rank {self.rank}] Extracted total_loss: {total_loss}"
+            )
 
             # Recalculate with global values
             self.logger.info(f"[DEBUG][Rank {self.rank}] Calculating global metrics")

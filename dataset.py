@@ -328,7 +328,7 @@ def get_ffcv_loaders(
         batch_size=batch_size,
         num_workers=num_workers,
         order=OrderOption.SEQUENTIAL,
-        drop_last=False,
+        drop_last=True,  # CRITICAL: Must be True in distributed mode to ensure all ranks get same number of batches
         pipelines={"image": val_pipeline, "label": label_pipeline},
         os_cache=True,
         distributed=distributed,
