@@ -2,6 +2,8 @@
 
 > **💰 Cost Savings**: Download/prepare data on a $0.10/hour t3.large, then train on GPU instance. Save $30+ on data preparation!
 
+> **🔧 Using NVIDIA Deep Learning AMI**: This guide is optimized for the **NVIDIA Deep Learning AMI with PyTorch 2.8** which has CUDA, cuDNN, and PyTorch pre-installed, saving setup time.
+
 ## Overview
 
 This guide shows how to:
@@ -13,8 +15,22 @@ This guide shows how to:
 **Total Cost Estimate:**
 - Data preparation: ~$0.50 (5 hours on t3.large)
 - Training: ~$15 (1.5 hours on p3.8xlarge spot)
-- EBS Storage: ~$8/month for 200GB
-- **Total: ~$15.50 one-time + $8/month storage**
+- EBS Storage: ~$13/month for 400GB
+- **Total: ~$15.50 one-time + $13/month storage**
+
+---
+
+## 🎯 NVIDIA Deep Learning AMI Advantages
+
+Using the **NVIDIA Deep Learning AMI (PyTorch 2.8)** provides:
+- ✅ **PyTorch 2.8** pre-installed with CUDA 12.x support
+- ✅ **NVIDIA drivers** and **cuDNN** already configured
+- ✅ **Conda environments** for easy package management
+- ✅ **Common ML libraries** pre-installed (numpy, scipy, etc.)
+- ✅ **Optimized for GPU** training out of the box
+- ✅ **No setup time** - start training immediately
+
+**AMI ID (us-east-1)**: `ami-0e3b9734bf8e3d64b` (verify latest version)
 
 ---
 
@@ -52,13 +68,15 @@ aws ec2 describe-volumes --region us-east-1 --volume-ids $EBS_VOLUME_ID
 ### Step 2.1: Launch t3.large Instance (Data Preparation)
 ```bash
 # Launch a cheap instance in the SAME availability zone as your EBS
+# Using NVIDIA Deep Learning AMI (PyTorch 2.8) for consistency
 aws ec2 run-instances \
-    --image-id ami-0c02fb55731490381 \  # Amazon Linux 2023 AMI
+    --region us-east-1 \
+    --image-id ami-0e3b9734bf8e3d64b \  # NVIDIA Deep Learning AMI (PyTorch 2.8) - check for latest
     --instance-type t3.large \
     --key-name your-key-pair \
-    --subnet-id subnet-xxxxx \  # Subnet in us-east-1a
+    --subnet-id subnet-xxxxx \  # Subnet in us-east-1a (SAME as EBS!)
     --security-group-ids sg-xxxxx \
-    --block-device-mappings "[{\"DeviceName\":\"/dev/xvda\",\"Ebs\":{\"VolumeSize\":20}}]" \
+    --block-device-mappings "[{\"DeviceName\":\"/dev/xvda\",\"Ebs\":{\"VolumeSize\":50}}]" \
     --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=data-prep-instance}]' \
     --user-data file://data_prep_script.sh
 
@@ -71,17 +89,22 @@ export PREP_INSTANCE_ID=i-027dd5fb0f01b62b4  # Replace with actual
 cat > data_prep_script.sh << 'EOF'
 #!/bin/bash
 # This script runs automatically when instance starts
+# NVIDIA Deep Learning AMI already has PyTorch 2.8 installed!
 
-# Update system
-sudo yum update -y
-sudo yum install -y python3-pip git htop
+# Update system (Ubuntu-based)
+sudo apt-get update -y
+sudo apt-get install -y git htop tmux
 
-# Install Python packages
-pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-pip3 install datasets huggingface_hub ffcv numpy tqdm
+# Activate the pre-installed PyTorch environment
+source /opt/conda/etc/profile.d/conda.sh
+conda activate pytorch
 
-# Wait for user to attach EBS and continue manually
-echo "Instance ready. Please attach EBS and run manual setup." > /home/ec2-user/status.txt
+# Install additional required packages (PyTorch already installed)
+pip install datasets huggingface_hub ffcv tqdm
+
+# Create status file
+echo "Instance ready. PyTorch 2.8 environment active." > /home/ubuntu/status.txt
+echo "Please attach EBS and run manual setup." >> /home/ubuntu/status.txt
 EOF
 ```
 
@@ -102,12 +125,22 @@ aws ec2 wait volume-in-use --volume-ids $EBS_VOLUME_ID
 
 ### Step 2.4: SSH into Instance and Mount EBS
 ```bash
-# SSH into the instance
-ssh -i your-key.pem ec2-user@<instance-public-ip>
+# SSH into the instance (ubuntu user for Deep Learning AMI)
+ssh -i your-key.pem ubuntu@<instance-public-ip>
 
-# Once logged in, run these commands:
+# Once logged in, activate PyTorch environment
+source /opt/conda/etc/profile.d/conda.sh
+conda activate pytorch
+
+# Check PyTorch version
+python -c "import torch; print(f'PyTorch {torch.__version__}')"
+
+# Mount EBS commands:
+# Check device name (might be /dev/xvdf or /dev/nvme1n1)
+lsblk
+
 # Format EBS (ONLY first time!)
-sudo mkfs -t xfs /dev/xvdf  # Note: device might be /dev/nvme1n1 on newer instances
+sudo mkfs -t xfs /dev/xvdf  # Or /dev/nvme1n1 if using Nitro instance
 
 # Create mount point
 sudo mkdir /data
@@ -116,24 +149,29 @@ sudo mkdir /data
 sudo mount /dev/xvdf /data
 
 # Change ownership
-sudo chown ec2-user:ec2-user /data
+sudo chown ubuntu:ubuntu /data
 
 # Make mount permanent
 echo '/dev/xvdf /data xfs defaults,nofail 0 2' | sudo tee -a /etc/fstab
 
 # Verify
-df -h /data  # Should show ~250GB available
+df -h /data  # Should show ~400GB available (you increased to 400GB)
 ```
 
 ### Step 2.5: Download and Prepare ImageNet
 ```bash
+# Ensure PyTorch environment is active
+source /opt/conda/etc/profile.d/conda.sh
+conda activate pytorch
+
 # Clone the project
 cd /data
 git clone https://github.com/yourusername/resnet50-imagenet.git  # Replace with your repo
 cd resnet50-imagenet
 
-# Install requirements
-pip3 install -r requirements.txt
+# Install additional requirements (PyTorch already installed)
+# Skip torch installation since we have PyTorch 2.8
+pip install datasets huggingface_hub ffcv numpy tqdm albumentations opencv-python
 
 # Authenticate with HuggingFace (if not already done)
 huggingface-cli login
@@ -147,10 +185,10 @@ export HF_DATASETS_CACHE=/data/huggingface_cache/datasets
 mkdir -p $FFCV_DIR $HF_HOME
 
 # Download and convert FULL ImageNet to FFCV (This takes 3-5 hours)
-python3 main.py convert-ffcv --ffcv-dir $FFCV_DIR
+python main.py convert-ffcv --ffcv-dir $FFCV_DIR
 
-# Optional: Also create partial dataset for testing
-python3 main.py convert-ffcv --partial-dataset --ffcv-dir ${FFCV_DIR}_partial
+# Optional: Also create partial dataset for testing (recommended first!)
+python main.py convert-ffcv --partial-dataset --partial-size 5000 --ffcv-dir ${FFCV_DIR}_partial
 
 # Verify data
 ls -lah $FFCV_DIR/
@@ -158,8 +196,10 @@ ls -lah $FFCV_DIR/
 # train.ffcv (~140GB)
 # val.ffcv (~6GB)
 
-# Create a marker file to indicate completion
+# Create a marker file with environment info
 echo "Data preparation complete: $(date)" > /data/READY.txt
+echo "PyTorch version: $(python -c 'import torch; print(torch.__version__)')" >> /data/READY.txt
+echo "CUDA available: $(python -c 'import torch; print(torch.cuda.is_available())')" >> /data/READY.txt
 ```
 
 ### Step 2.6: Detach EBS and Terminate Cheap Instance
@@ -193,10 +233,11 @@ echo "✅ Data preparation complete! EBS volume $EBS_VOLUME_ID is ready for trai
 ```bash
 # For p3.8xlarge (4x V100, ~$12/hour spot)
 aws ec2 run-instances \
-    --image-id ami-0d70546e43a941d70 \  # Deep Learning AMI
+    --region us-east-1 \
+    --image-id ami-0e3b9734bf8e3d64b \  # NVIDIA Deep Learning AMI (PyTorch 2.8)
     --instance-type p3.8xlarge \
     --key-name your-key-pair \
-    --subnet-id subnet-xxxxx \  # SAME availability zone as EBS!
+    --subnet-id subnet-xxxxx \  # SAME availability zone as EBS! (us-east-1a)
     --security-group-ids sg-xxxxx \
     --instance-market-options '{"MarketType":"spot","SpotOptions":{"MaxPrice":"4.00"}}' \
     --block-device-mappings "[{\"DeviceName\":\"/dev/xvda\",\"Ebs\":{\"VolumeSize\":100}}]" \
@@ -211,20 +252,27 @@ export GPU_INSTANCE_ID=i-9876543210fedcba  # Replace with actual
 ```bash
 cat > training_script.sh << 'EOF'
 #!/bin/bash
-# Auto-setup for GPU training instance
+# Auto-setup for GPU training instance with PyTorch 2.8 pre-installed
+
+# Activate PyTorch environment
+source /opt/conda/etc/profile.d/conda.sh
+conda activate pytorch
 
 # Clone project (will be on root volume)
 cd /home/ubuntu
 git clone https://github.com/yourusername/resnet50-imagenet.git
 cd resnet50-imagenet
 
-# Install requirements
-pip install -r requirements.txt
+# Install additional requirements (PyTorch already installed)
+pip install datasets huggingface_hub ffcv numpy tqdm albumentations opencv-python wandb
 
 # Create mount point for data
 sudo mkdir -p /data
 
-echo "Instance ready. Attach EBS and start training." > /home/ubuntu/READY.txt
+# Test GPU availability
+python -c "import torch; print(f'GPUs available: {torch.cuda.device_count()}')"
+
+echo "Instance ready with PyTorch 2.8. Attach EBS and start training." > /home/ubuntu/READY.txt
 EOF
 ```
 
@@ -248,16 +296,27 @@ aws ec2 wait volume-in-use --volume-ids $EBS_VOLUME_ID
 # SSH into GPU instance
 ssh -i your-key.pem ubuntu@<gpu-instance-public-ip>
 
-# Install tmux if not available
-sudo apt-get update && sudo apt-get install -y tmux
+# Activate PyTorch 2.8 environment
+source /opt/conda/etc/profile.d/conda.sh
+conda activate pytorch
+
+# Verify PyTorch and GPU
+python -c "import torch; print(f'PyTorch {torch.__version__}, GPUs: {torch.cuda.device_count()}')"
+
+# tmux should already be installed, if not:
+# sudo apt-get update && sudo apt-get install -y tmux
 
 # Start tmux session for persistent training
 tmux new -s training
 
 # === Inside tmux session ===
 
+# Make sure conda environment is active in tmux
+source /opt/conda/etc/profile.d/conda.sh
+conda activate pytorch
+
 # Mount the EBS with prepared data
-sudo mount /dev/xvdf /data  # Or /dev/nvme1n1
+sudo mount /dev/xvdf /data  # Or /dev/nvme1n1 for Nitro instances
 sudo chown ubuntu:ubuntu /data
 
 # Verify data is there
@@ -388,8 +447,8 @@ python main.py train \
 ### Ongoing Storage:
 | Component | Size | Rate | Monthly Cost |
 |-----------|------|------|--------------|
-| EBS GP3 SSD | 250GB | $0.032/GB-month | $8.00 |
-| Snapshots (optional) | 250GB | $0.05/GB-month | $12.50 |
+| EBS GP3 SSD | 400GB | $0.032/GB-month | $12.80 |
+| Snapshots (optional) | 400GB | $0.05/GB-month | $20.00 |
 
 ### Per Training Run (Reusing EBS):
 | Component | Time | Rate | Cost |
@@ -443,11 +502,44 @@ aws cloudwatch put-metric-alarm \
 
 ---
 
+## 🔧 Troubleshooting PyTorch 2.8 AMI
+
+### Common Issues and Solutions:
+
+**Conda environment not activated:**
+```bash
+source /opt/conda/etc/profile.d/conda.sh
+conda activate pytorch
+```
+
+**PyTorch not finding GPUs:**
+```bash
+# Check CUDA availability
+python -c "import torch; print(torch.cuda.is_available())"
+# If false, restart instance or check nvidia-smi
+```
+
+**Permission issues with conda:**
+```bash
+# Run as ubuntu user, not root
+sudo chown -R ubuntu:ubuntu /opt/conda/envs/pytorch
+```
+
+**Package conflicts:**
+```bash
+# Create a fresh environment if needed
+conda create -n training python=3.10
+conda activate training
+conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia
+```
+
+---
+
 ## 🚀 Quick Reference Commands
 
 ```bash
 # Variables to set once
-export EBS_VOLUME_ID=vol-xxxxx
+export EBS_VOLUME_ID=vol-0468159ea0a0112aa  # Your actual volume ID
 export PREP_INSTANCE_ID=i-xxxxx  
 export GPU_INSTANCE_ID=i-xxxxx
 
@@ -480,10 +572,12 @@ aws ec2 delete-volume --volume-id $EBS_VOLUME_ID
 5. ✅ Flexibility - attach to any GPU instance type
 
 **Key Points:**
-- Prepare data ONCE on t3.large (~$0.50)
-- Store on EBS (~$8/month)
+- Use **NVIDIA Deep Learning AMI** with PyTorch 2.8 pre-installed
+- Prepare data ONCE on t3.large (~$0.50)  
+- Store on 400GB EBS (~$13/month)
 - Train MULTIPLE times on GPU (~$15 each)
 - Total first run: ~$15.50
 - Subsequent runs: ~$15.00 each
+- No setup overhead - PyTorch ready to go!
 
 This strategy saves significant money and time for multiple training runs!
