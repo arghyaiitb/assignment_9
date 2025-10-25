@@ -205,7 +205,9 @@ echo "✅ Training complete! Model saved on EBS: $EBS_VOLUME_ID"
 
 ```python
 --batch-size 2048        # 256 per GPU × 8 GPUs
---lr 3.2                 # Scaled linearly (0.1 × 32)
+--lr 3.2                 # Scaled for batch size (0.1 × sqrt(32) × 2)
+                         # Base LR 0.1 for batch 64 → 3.2 for batch 2048
+                         # Note: Code does NOT auto-scale by world_size
 --epochs 60              # Fewer epochs needed with larger batch
 --warmup-epochs 5        # Critical for large batch training
 --progressive-resize     # 160→192→224 resolution
@@ -336,14 +338,36 @@ python main.py distributed \
   --ffcv-dir /data/ffcv
 ```
 
-### Poor Accuracy
-```bash
-# Lower learning rate
---lr 0.8  # If loss diverging
+### Poor Accuracy / Model Diverging
 
-# Check data augmentation
+**Symptoms**: Loss increasing, accuracy dropping (e.g., 5% → 0.1%), loss = NaN
+
+**Most Common Cause**: Learning rate too high
+
+```bash
+# If you see these symptoms:
+# - Training loss INCREASING (e.g., 5.98 → 6.90)
+# - Training accuracy DECREASING (e.g., 5% → 0.1%)
+# - Validation loss = NaN
+# - LR shown as > 10 in logs
+
+# ✅ FIX: Reduce learning rate significantly
+--lr 0.4   # Start with 1/8 of recommended
+--lr 0.8   # Then try 1/4
+--lr 1.6   # Then try 1/2
+--lr 3.2   # Full recommended (if above work)
+
+# Or disable progressive resize to simplify
+--no-progressive-resize
+
+# Or reduce batch size
+--batch-size 1024  # Instead of 2048
+
+# Check data augmentation isn't too aggressive
 --cutmix-prob 0.0  # Disable if causing issues
 ```
+
+**Note**: The code does NOT automatically scale LR by world_size. You should manually specify the LR based on your total batch size. For batch 2048, use `--lr 3.2`.
 
 ## 📋 Training Checklist
 

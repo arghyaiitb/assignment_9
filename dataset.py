@@ -328,7 +328,10 @@ def get_ffcv_loaders(
     # Only rank 0 will actually validate (handled in train.py), others will skip.
     val_loader = Loader(
         str(val_path),
-        batch_size=batch_size * (8 if distributed else 1),  # Increase batch size if distributed since only rank 0 validates
+        batch_size=batch_size
+        * (
+            8 if distributed else 1
+        ),  # Increase batch size if distributed since only rank 0 validates
         num_workers=num_workers,
         order=OrderOption.SEQUENTIAL,
         drop_last=False,
