@@ -56,7 +56,6 @@ class Trainer:
         self.current_epoch = 0
         self.start_epoch = 0  # For resuming training
         self.global_step = 0  # Track global step for scheduler
-        self.first_batch = True  # Track if this is the very first training batch
 
         # Setup checkpoint and log directories from config or environment
         self.checkpoint_dir = Path(
@@ -288,11 +287,21 @@ class Trainer:
                 last_epoch=-1,  # Start from beginning
             )
 
+            # WORKAROUND: Call scheduler.step() once to initialize its internal state
+            # This prevents the PyTorch warning about scheduler.step() before optimizer.step()
+            # We'll manually set the LR back to initial value
+            initial_lr_value = max_lr / 25  # Store the correct initial LR
+            self.scheduler.step()  # This advances internal state but we'll reset LR
+
+            # Manually reset LR to initial value
+            for param_group in self.optimizer.param_groups:
+                param_group["lr"] = initial_lr_value
+
             # Get the initial learning rate that OneCycleLR sets
             if self.rank == 0:
                 actual_initial_lr = self.optimizer.param_groups[0]["lr"]
                 self.logger.info(
-                    f"🔍 DEBUG: Actual initial LR after scheduler creation: {actual_initial_lr}"
+                    f"🔍 DEBUG: Actual initial LR after scheduler workaround: {actual_initial_lr}"
                 )
             self.logger.info(
                 f"Using OneCycleLR scheduler with {warmup_epochs} warmup epochs"
@@ -423,21 +432,9 @@ class Trainer:
                 self.optimizer.step()
 
             # Update scheduler (must be after optimizer.step())
-            # IMPORTANT: Don't step scheduler before first optimizer.step() to avoid PyTorch warning
             if self.scheduler is not None:
-                if not self.first_batch:
-                    self.scheduler.step()
-                    self.global_step += 1
-                else:
-                    # On first batch, optimizer.step() was just called, so now it's safe
-                    # to step scheduler on subsequent batches
-                    self.first_batch = False
-                    self.global_step += 1
-                    if self.rank == 0:
-                        actual_lr = self.optimizer.param_groups[0]["lr"]
-                        self.logger.info(
-                            f"🔍 DEBUG: LR after first batch (no scheduler step): {actual_lr}"
-                        )
+                self.scheduler.step()
+                self.global_step += 1
 
             # Update EMA
             if self.ema_model is not None and batch_idx % 10 == 0:
@@ -730,9 +727,6 @@ class Trainer:
             self.start_epoch = checkpoint["epoch"] + 1
             self.current_epoch = checkpoint["epoch"]
             self.best_accuracy = checkpoint.get("best_accuracy", 0.0)
-
-            # Reset first_batch flag since we've already done training
-            self.first_batch = False
 
             self.logger.info(f"Resumed from epoch {self.start_epoch}")
             self.logger.info(f"Best accuracy so far: {self.best_accuracy:.2f}%")
