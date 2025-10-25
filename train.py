@@ -323,7 +323,9 @@ class Trainer:
         total = 0
 
         # Progress bar only on rank 0
-        self.logger.info(f"[DEBUG][Rank {self.rank}] Starting training loop, {len(self.train_loader)} batches")
+        self.logger.info(
+            f"[DEBUG][Rank {self.rank}] Starting training loop, {len(self.train_loader)} batches"
+        )
         pbar = tqdm(self.train_loader) if self.rank == 0 else self.train_loader
 
         for batch_idx, batch in enumerate(pbar):
@@ -429,20 +431,28 @@ class Trainer:
         self.logger.info(f"[DEBUG][Rank {self.rank}] Training loop completed")
         avg_loss = total_loss / len(self.train_loader)
         accuracy = 100.0 * correct / total if total > 0 else 0
-        self.logger.info(f"[DEBUG][Rank {self.rank}] Local training metrics: acc={accuracy:.2f}%, loss={avg_loss:.4f}")
+        self.logger.info(
+            f"[DEBUG][Rank {self.rank}] Local training metrics: acc={accuracy:.2f}%, loss={avg_loss:.4f}"
+        )
 
         # Aggregate training metrics across all GPUs if distributed
         if self.distributed:
-            self.logger.info(f"[DEBUG][Rank {self.rank}] Starting distributed training metrics aggregation")
+            self.logger.info(
+                f"[DEBUG][Rank {self.rank}] Starting distributed training metrics aggregation"
+            )
             # Convert metrics to tensors for all-reduce
             metrics = torch.tensor(
                 [correct, total, total_loss, len(self.train_loader)],
                 dtype=torch.float32,
                 device=self.device,
             )
-            self.logger.info(f"[DEBUG][Rank {self.rank}] Entering all_reduce for training metrics")
+            self.logger.info(
+                f"[DEBUG][Rank {self.rank}] Entering all_reduce for training metrics"
+            )
             dist.all_reduce(metrics, op=dist.ReduceOp.SUM)
-            self.logger.info(f"[DEBUG][Rank {self.rank}] all_reduce completed for training metrics")
+            self.logger.info(
+                f"[DEBUG][Rank {self.rank}] all_reduce completed for training metrics"
+            )
 
             # Extract aggregated values
             correct = metrics[0].item()
@@ -453,7 +463,9 @@ class Trainer:
             # Recalculate with global values
             avg_loss = total_loss / num_batches
             accuracy = 100.0 * correct / total if total > 0 else 0
-            self.logger.info(f"[DEBUG][Rank {self.rank}] Global training metrics: acc={accuracy:.2f}%, loss={avg_loss:.4f}")
+            self.logger.info(
+                f"[DEBUG][Rank {self.rank}] Global training metrics: acc={accuracy:.2f}%, loss={avg_loss:.4f}"
+            )
 
         self.logger.info(f"[DEBUG][Rank {self.rank}] train_epoch() function returning")
         return accuracy, avg_loss
@@ -468,9 +480,13 @@ class Trainer:
         correct = 0
         total = 0
 
-        self.logger.info(f"[DEBUG][Rank {self.rank}] Starting validation loop, {len(self.val_loader)} batches")
+        self.logger.info(
+            f"[DEBUG][Rank {self.rank}] Starting validation loop, {len(self.val_loader)} batches"
+        )
         with torch.no_grad():
-            for batch_idx, batch in enumerate(tqdm(self.val_loader, disable=self.rank != 0)):
+            for batch_idx, batch in enumerate(
+                tqdm(self.val_loader, disable=self.rank != 0)
+            ):
                 # Check batch type instead of just relying on flag
                 if isinstance(batch, dict):
                     # FFCV loader returns dict
@@ -499,16 +515,22 @@ class Trainer:
         self.logger.info(f"[DEBUG][Rank {self.rank}] Validation loop completed")
         avg_loss = total_loss / len(self.val_loader)
         accuracy = 100.0 * correct / total if total > 0 else 0
-        self.logger.info(f"[DEBUG][Rank {self.rank}] Local validation metrics: acc={accuracy:.2f}%, loss={avg_loss:.4f}")
+        self.logger.info(
+            f"[DEBUG][Rank {self.rank}] Local validation metrics: acc={accuracy:.2f}%, loss={avg_loss:.4f}"
+        )
 
         # Aggregate metrics across all GPUs if distributed
         if self.distributed:
-            self.logger.info(f"[DEBUG][Rank {self.rank}] Starting distributed metrics aggregation")
+            self.logger.info(
+                f"[DEBUG][Rank {self.rank}] Starting distributed metrics aggregation"
+            )
             # Convert to tensors for all-reduce
             metrics = torch.tensor(
                 [correct, total, total_loss], dtype=torch.float32, device=self.device
             )
-            self.logger.info(f"[DEBUG][Rank {self.rank}] Entering all_reduce for validation metrics")
+            self.logger.info(
+                f"[DEBUG][Rank {self.rank}] Entering all_reduce for validation metrics"
+            )
             dist.all_reduce(metrics, op=dist.ReduceOp.SUM)
             self.logger.info(f"[DEBUG][Rank {self.rank}] all_reduce completed")
 
@@ -520,7 +542,9 @@ class Trainer:
             # Recalculate with global values
             avg_loss = total_loss / (len(self.val_loader) * self.world_size)
             accuracy = 100.0 * correct / total if total > 0 else 0
-            self.logger.info(f"[DEBUG][Rank {self.rank}] Global validation metrics: acc={accuracy:.2f}%, loss={avg_loss:.4f}")
+            self.logger.info(
+                f"[DEBUG][Rank {self.rank}] Global validation metrics: acc={accuracy:.2f}%, loss={avg_loss:.4f}"
+            )
 
         self.logger.info(f"[DEBUG][Rank {self.rank}] validate() function returning")
         return accuracy, avg_loss
@@ -681,7 +705,9 @@ class Trainer:
 
         for epoch in range(self.start_epoch, epochs):
             self.current_epoch = epoch
-            self.logger.info(f"[DEBUG][Rank {self.rank}] Starting epoch {epoch + 1}/{epochs}")
+            self.logger.info(
+                f"[DEBUG][Rank {self.rank}] Starting epoch {epoch + 1}/{epochs}"
+            )
 
             # Update data loaders for progressive resizing
             if self.config.get("progressive_resize", False) and self.use_ffcv:
@@ -689,25 +715,39 @@ class Trainer:
                 if epoch == 0 or new_size != self._get_image_size(epoch - 1):
                     if self.rank == 0:
                         self.logger.info(f"Updating image size to {new_size}")
-                    self.logger.info(f"[DEBUG][Rank {self.rank}] Rebuilding dataloaders for image size {new_size}")
+                    self.logger.info(
+                        f"[DEBUG][Rank {self.rank}] Rebuilding dataloaders for image size {new_size}"
+                    )
                     self._build_dataloaders()
-                    self.logger.info(f"[DEBUG][Rank {self.rank}] Dataloaders rebuilt successfully")
+                    self.logger.info(
+                        f"[DEBUG][Rank {self.rank}] Dataloaders rebuilt successfully"
+                    )
                     # Ensure all ranks finish rebuilding loaders before continuing
                     if self.distributed:
-                        self.logger.info(f"[DEBUG][Rank {self.rank}] Entering barrier after dataloader rebuild")
+                        self.logger.info(
+                            f"[DEBUG][Rank {self.rank}] Entering barrier after dataloader rebuild"
+                        )
                         dist.barrier()
-                        self.logger.info(f"[DEBUG][Rank {self.rank}] Passed barrier after dataloader rebuild")
+                        self.logger.info(
+                            f"[DEBUG][Rank {self.rank}] Passed barrier after dataloader rebuild"
+                        )
 
             # Set epoch for distributed sampler
             if self.distributed and hasattr(self.train_loader, "sampler"):
-                self.logger.info(f"[DEBUG][Rank {self.rank}] Setting epoch {epoch} for distributed sampler")
+                self.logger.info(
+                    f"[DEBUG][Rank {self.rank}] Setting epoch {epoch} for distributed sampler"
+                )
                 self.train_loader.sampler.set_epoch(epoch)
 
             # Synchronize all ranks before starting epoch
             if self.distributed:
-                self.logger.info(f"[DEBUG][Rank {self.rank}] Entering barrier before epoch start")
+                self.logger.info(
+                    f"[DEBUG][Rank {self.rank}] Entering barrier before epoch start"
+                )
                 dist.barrier()
-                self.logger.info(f"[DEBUG][Rank {self.rank}] Passed barrier before epoch start")
+                self.logger.info(
+                    f"[DEBUG][Rank {self.rank}] Passed barrier before epoch start"
+                )
 
             # Train for one epoch
             if self.rank == 0:
@@ -718,18 +758,28 @@ class Trainer:
             train_acc, train_loss = self.train_epoch()
 
             # Debug: Log after training epoch completes
-            self.logger.info(f"[DEBUG][Rank {self.rank}] Training epoch {epoch + 1} completed")
+            self.logger.info(
+                f"[DEBUG][Rank {self.rank}] Training epoch {epoch + 1} completed"
+            )
 
             # Validation - all ranks participate but only rank 0 saves
-            self.logger.info(f"[DEBUG][Rank {self.rank}] Starting validation for epoch {epoch + 1}")
+            self.logger.info(
+                f"[DEBUG][Rank {self.rank}] Starting validation for epoch {epoch + 1}"
+            )
             val_acc, val_loss = self.validate()
-            self.logger.info(f"[DEBUG][Rank {self.rank}] Validation completed. Acc: {val_acc:.2f}%")
+            self.logger.info(
+                f"[DEBUG][Rank {self.rank}] Validation completed. Acc: {val_acc:.2f}%"
+            )
 
             # Synchronize all ranks after validation before any rank-specific operations
             if self.distributed:
-                self.logger.info(f"[DEBUG][Rank {self.rank}] Entering barrier after validation")
+                self.logger.info(
+                    f"[DEBUG][Rank {self.rank}] Entering barrier after validation"
+                )
                 dist.barrier()
-                self.logger.info(f"[DEBUG][Rank {self.rank}] Passed barrier after validation")
+                self.logger.info(
+                    f"[DEBUG][Rank {self.rank}] Passed barrier after validation"
+                )
 
             if self.rank == 0:
                 # Log results
@@ -758,44 +808,64 @@ class Trainer:
                 if (epoch + 1) % self.config.get(
                     "checkpoint_interval", 5
                 ) == 0 or is_best:
-                    self.logger.info(f"[DEBUG][Rank {self.rank}] Saving checkpoint for epoch {epoch + 1}")
+                    self.logger.info(
+                        f"[DEBUG][Rank {self.rank}] Saving checkpoint for epoch {epoch + 1}"
+                    )
                     self.save_checkpoint(is_best)
-                    self.logger.info(f"[DEBUG][Rank {self.rank}] Checkpoint saved successfully")
+                    self.logger.info(
+                        f"[DEBUG][Rank {self.rank}] Checkpoint saved successfully"
+                    )
 
             # Early stopping check - only rank 0 decides
             if self.rank == 0:
-                self.logger.info(f"[DEBUG][Rank {self.rank}] Checking early stopping condition")
+                self.logger.info(
+                    f"[DEBUG][Rank {self.rank}] Checking early stopping condition"
+                )
                 should_stop = val_acc >= self.config.get("target_accuracy", 100)
                 if should_stop:
                     self.logger.info(
                         f"Target accuracy {self.config['target_accuracy']}% reached!"
                     )
-                self.logger.info(f"[DEBUG][Rank {self.rank}] Early stopping decision: {should_stop}")
+                self.logger.info(
+                    f"[DEBUG][Rank {self.rank}] Early stopping decision: {should_stop}"
+                )
             else:
                 should_stop = False
 
             # Broadcast the stopping decision to all ranks
             if self.distributed:
-                self.logger.info(f"[DEBUG][Rank {self.rank}] Preparing for early stopping broadcast")
+                self.logger.info(
+                    f"[DEBUG][Rank {self.rank}] Preparing for early stopping broadcast"
+                )
                 # Create tensor on all ranks
                 if self.rank == 0:
                     stop_tensor = torch.tensor(
                         [1.0 if should_stop else 0.0], device=self.device
                     )
-                    self.logger.info(f"[DEBUG][Rank {self.rank}] Created stop_tensor with value: {stop_tensor.item()}")
+                    self.logger.info(
+                        f"[DEBUG][Rank {self.rank}] Created stop_tensor with value: {stop_tensor.item()}"
+                    )
                 else:
                     stop_tensor = torch.tensor([0.0], device=self.device)
-                    self.logger.info(f"[DEBUG][Rank {self.rank}] Created stop_tensor (will receive broadcast)")
+                    self.logger.info(
+                        f"[DEBUG][Rank {self.rank}] Created stop_tensor (will receive broadcast)"
+                    )
 
                 # All ranks participate in broadcast
-                self.logger.info(f"[DEBUG][Rank {self.rank}] Entering broadcast operation")
+                self.logger.info(
+                    f"[DEBUG][Rank {self.rank}] Entering broadcast operation"
+                )
                 dist.broadcast(stop_tensor, src=0)
-                self.logger.info(f"[DEBUG][Rank {self.rank}] Broadcast completed, received value: {stop_tensor.item()}")
+                self.logger.info(
+                    f"[DEBUG][Rank {self.rank}] Broadcast completed, received value: {stop_tensor.item()}"
+                )
 
                 # All ranks get the result
                 should_stop = stop_tensor.item() > 0.5
 
-            self.logger.info(f"[DEBUG][Rank {self.rank}] End of epoch {epoch + 1}, should_stop: {should_stop}")
+            self.logger.info(
+                f"[DEBUG][Rank {self.rank}] End of epoch {epoch + 1}, should_stop: {should_stop}"
+            )
 
             if should_stop:
                 break
