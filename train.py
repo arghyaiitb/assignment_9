@@ -284,7 +284,15 @@ class Trainer:
                 div_factor=25,
                 final_div_factor=10000,
                 anneal_strategy="cos",
+                last_epoch=-1,  # Start from beginning
             )
+
+            # Get the initial learning rate that OneCycleLR sets
+            if self.rank == 0:
+                actual_initial_lr = self.optimizer.param_groups[0]["lr"]
+                self.logger.info(
+                    f"🔍 DEBUG: Actual initial LR after scheduler creation: {actual_initial_lr}"
+                )
             self.logger.info(
                 f"Using OneCycleLR scheduler with {warmup_epochs} warmup epochs"
             )
@@ -716,12 +724,28 @@ class Trainer:
             self.current_epoch = epoch
 
             # Update data loaders for progressive resizing
-            if self.config.get("progressive_resize", False) and self.use_ffcv:
+            # NOTE: Skip epoch 0 since dataloaders were just built in __init__
+            if (
+                self.config.get("progressive_resize", False)
+                and self.use_ffcv
+                and epoch > 0
+            ):
                 new_size = self._get_image_size(epoch)
-                if epoch == 0 or new_size != self._get_image_size(epoch - 1):
+                if new_size != self._get_image_size(epoch - 1):
                     if self.rank == 0:
-                        self.logger.info(f"Updating image size to {new_size}")
+                        self.logger.info(
+                            f"Updating image size to {new_size} at epoch {epoch + 1}"
+                        )
+                    # Need to rebuild scheduler when dataloaders change!
+                    old_total_steps = self.config["epochs"] * len(self.train_loader)
                     self._build_dataloaders()
+                    new_total_steps = self.config["epochs"] * len(self.train_loader)
+
+                    if old_total_steps != new_total_steps and self.rank == 0:
+                        self.logger.warning(
+                            f"⚠️  Dataloader length changed! Scheduler may need adjustment."
+                        )
+
                     # Ensure all ranks finish rebuilding loaders before continuing
                     if self.distributed:
                         dist.barrier()
