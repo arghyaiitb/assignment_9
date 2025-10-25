@@ -72,11 +72,11 @@ class Trainer:
         self.rank = config.get("rank", 0)
         self.world_size = config.get("world_size", 1)
 
+        # Setup logging first (before device setup which logs)
+        self._setup_logging()
+
         # Setup device
         self._setup_device()
-
-        # Setup logging
-        self._setup_logging()
 
         # Initialize components
         self._build_model()
