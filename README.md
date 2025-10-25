@@ -4,6 +4,37 @@ Train ResNet-50 on ImageNet-1K to achieve **78% top-1 accuracy** within **$15 bu
 
 > **🆕 Quick Testing Feature**: Test the entire training pipeline in ~5 minutes with partial dataset support! Use `--partial-dataset` to train on just 1% of ImageNet for rapid iteration and debugging. See [Quick Testing](#quick-testing-with-partial-dataset-new) below.
 
+## ⚡ Quick Command Reference
+
+| Task | Command | Time |
+|------|---------|------|
+| **Install Everything** | `./install.sh` | 2 min |
+| **Test Installation** | `python test_minimal.py` | 1 min |
+| **Quick Partial Test** | `./quick_test_partial.sh` | 5 min |
+| **Convert Dataset** | `python main.py convert-ffcv` | 30 min |
+| **Train (Single GPU)** | `python main.py train --use-ffcv` | 8 hrs |
+| **Train (Multi-GPU)** | `python main.py distributed --use-ffcv` | 90 min |
+| **Validate Model** | `python main.py validate --validate-only checkpoint.pt` | 1 min |
+
+### 🖥️ tmux Quick Start for Training
+```bash
+# Option 1: Automated tmux setup (Recommended!)
+./scripts/tmux_training_setup.sh 2048 100  # batch_size epochs
+# Creates 4 windows with training, monitoring, logs, and dashboard
+
+# Option 2: Manual tmux
+tmux new -s train
+python main.py distributed --use-ffcv --epochs 100
+# Detach: Ctrl+B, D (training continues)
+
+# Later: Reattach to check progress
+tmux attach -t train
+
+# Emergency: List/kill sessions
+tmux ls
+tmux kill-session -t train
+```
+
 ## 📋 System Requirements
 
 ### Hardware
@@ -265,6 +296,8 @@ python main.py distributed \
 
 ## 💰 Cost-Optimized Training on AWS
 
+> **📖 NEW: EBS Strategy Guide** - Save money by preparing data on cheap instances! See [AWS_EBS_GUIDE.md](AWS_EBS_GUIDE.md) for complete instructions on using EBS volumes to separate data preparation ($0.50) from training ($15).
+
 ### Using p4d.24xlarge (8x A100 80GB)
 
 ```bash
@@ -333,21 +366,92 @@ python main.py train --use-ffcv ...
 
 ## 🔍 Monitoring Training
 
-### Check Training Progress
+### Using tmux for Persistent Sessions (Recommended!)
+
+**Why tmux?** Training can take hours. tmux keeps your session running even if SSH disconnects.
+
+#### Start Training in tmux
 ```bash
-# Watch logs in real-time
+# Create a new tmux session named 'training'
+tmux new -s training
+
+# Inside tmux, start your training
+python main.py distributed \
+    --use-ffcv \
+    --batch-size 2048 \
+    --epochs 100
+
+# Detach from tmux (training continues running)
+# Press: Ctrl+B, then D
+```
+
+#### Managing tmux Sessions
+```bash
+# List all tmux sessions
+tmux ls
+
+# Reattach to training session
+tmux attach -t training
+
+# Create multiple windows in same session
+# Inside tmux: Ctrl+B, then C (new window)
+# Switch windows: Ctrl+B, then 0/1/2/etc
+
+# Kill a session (after training completes)
+tmux kill-session -t training
+```
+
+#### Recommended tmux Workflow
+```bash
+# SSH to your instance
+ssh ubuntu@<instance-ip>
+
+# Start tmux with meaningful name
+tmux new -s train_resnet50
+
+# Split window for monitoring (Ctrl+B, then %)
+# Left pane: training
+python main.py distributed --use-ffcv --epochs 100
+
+# Right pane: monitoring (Ctrl+B, then arrow to switch)
+watch -n 1 nvidia-smi
+
+# Create new window for logs (Ctrl+B, then C)
 tail -f logs/train_*.log
 
-# Monitor GPU usage
-nvidia-smi -l 1
+# Detach and let it run (Ctrl+B, then D)
+# You can now safely close SSH!
+```
 
-# Check checkpoint directory
+#### Quick tmux Cheatsheet
+| Action | Command |
+|--------|---------|
+| **Create session** | `tmux new -s name` |
+| **Detach** | `Ctrl+B`, then `D` |
+| **Reattach** | `tmux attach -t name` |
+| **List sessions** | `tmux ls` |
+| **New window** | `Ctrl+B`, then `C` |
+| **Switch window** | `Ctrl+B`, then `0-9` |
+| **Split horizontal** | `Ctrl+B`, then `%` |
+| **Split vertical** | `Ctrl+B`, then `"` |
+| **Switch pane** | `Ctrl+B`, then arrow keys |
+| **Kill pane** | `Ctrl+B`, then `X` |
+| **Scroll mode** | `Ctrl+B`, then `[` (q to exit) |
+
+### Monitor Without tmux
+```bash
+# If not using tmux, run training in background
+nohup python main.py distributed --use-ffcv > training.log 2>&1 &
+
+# Monitor the background job
+tail -f training.log
+nvidia-smi -l 1
 ls -lh checkpoints/
 ```
 
 ### TensorBoard (Optional)
 ```bash
-# If using TensorBoard logging
+# In a separate tmux window/pane
 tensorboard --logdir logs/
 ```
 
@@ -422,6 +526,82 @@ With all optimizations on appropriate hardware:
 
 ### Version Check
 Run `python check_versions.py` to verify all packages are correctly installed.
+
+## 📚 Complete Command Reference
+
+### Available Modes (5 total)
+- `train` - Single GPU training
+- `distributed` - Multi-GPU distributed training  
+- `convert-ffcv` - Convert ImageNet to FFCV format
+- `test` - Run quick tests
+- `validate` - Validate a checkpoint
+
+### Full Argument List (28+ options)
+| Category | Arguments | Count |
+|----------|-----------|-------|
+| **Dataset** | `--dataset`, `--data-dir`, `--ffcv-dir`, `--use-ffcv`, `--max-samples` | 5 |
+| **Partial Dataset** | `--partial-dataset`, `--partial-size`, `--partial-classes` | 3 |
+| **Training** | `--batch-size`, `--epochs`, `--lr`, `--momentum`, `--weight-decay`, `--label-smoothing`, `--scheduler` | 7 |
+| **Augmentation** | `--cutmix-prob`, `--mixup-alpha`, `--progressive-resize` | 3 |
+| **Optimization** | `--amp`, `--compile`, `--use-ema`, `--gradient-clip`, `--target-accuracy` | 5 |
+| **Distributed** | `--world-size`, `--num-workers`, `--dist-backend` | 3 |
+| **Checkpointing** | `--resume`, `--checkpoint-interval`, `--validate-only` | 3 |
+| **Other** | `--seed`, `--budget-hours` | 2 |
+| **TOTAL** | All arguments documented with examples above | **31** |
+
+## 🎓 Training Workflows
+
+### Workflow 1: Quick Verification (5 minutes)
+```bash
+# Test everything works
+python test_minimal.py
+```
+
+### Workflow 2: Partial Dataset Training (10-15 minutes)
+```bash
+# Convert partial dataset
+python main.py convert-ffcv --partial-dataset --partial-size 5000
+
+# Train on partial dataset
+python main.py train --partial-dataset --partial-size 5000 --use-ffcv --epochs 5
+```
+
+### Workflow 3: Full Training for 78% Accuracy (90 minutes on 8x A100)
+```bash
+# One-time: Convert full dataset
+python main.py convert-ffcv
+
+# Train with all optimizations
+python main.py distributed \
+    --use-ffcv \
+    --batch-size 2048 \
+    --epochs 100 \
+    --progressive-resize \
+    --use-ema \
+    --compile
+```
+
+### Workflow 4: Budget-Constrained Training ($15 limit)
+```bash
+# On AWS p4d.24xlarge spot instance
+python main.py distributed \
+    --use-ffcv \
+    --batch-size 2048 \
+    --epochs 100 \
+    --budget-hours 1.5 \
+    --progressive-resize \
+    --use-ema
+```
+
+## 🏆 Performance Benchmarks
+
+| Setup | Time | Cost | Accuracy | Command |
+|-------|------|------|----------|---------|
+| **Test** | 1 min | $0 | N/A | `python test_minimal.py` |
+| **Partial** | 5 min | <$1 | ~40% | `./quick_test_partial.sh` |
+| **Single V100** | 8 hrs | $25 | 76% | `python main.py train --use-ffcv` |
+| **4x V100** | 3 hrs | $20 | 77% | `python main.py distributed --world-size 4` |
+| **8x A100** | 90 min | $15 | **78%** | `python main.py distributed --use-ffcv` |
 
 ## 📝 Citation
 
