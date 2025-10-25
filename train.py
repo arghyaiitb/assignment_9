@@ -55,7 +55,7 @@ class Trainer:
         self.best_accuracy = 0.0
         self.current_epoch = 0
         self.start_epoch = 0  # For resuming training
-        self.first_batch_in_epoch = True  # Track first batch for scheduler fix
+        self.global_step = 0  # Track global step for scheduler
 
         # Setup checkpoint and log directories from config or environment
         self.checkpoint_dir = Path(
@@ -87,7 +87,7 @@ class Trainer:
 
         # Mixed precision
         if config.get("amp", True):
-            self.scaler = GradScaler('cuda')
+            self.scaler = GradScaler("cuda")
 
         # EMA model
         if config.get("use_ema", False) and self.rank == 0:
@@ -260,18 +260,15 @@ class Trainer:
         warmup_epochs = self.config.get("warmup_epochs", 5)
 
         if scheduler_type == "onecycle":
+            total_steps = epochs * len(self.train_loader)
             self.scheduler = OneCycleLR(
                 self.optimizer,
                 max_lr=self.optimizer.param_groups[0]["lr"],
-                epochs=epochs,
-                steps_per_epoch=len(self.train_loader),
-                pct_start=warmup_epochs / epochs
-                if warmup_epochs > 0
-                else 0.25,  # Use warmup_epochs
+                total_steps=total_steps,
+                pct_start=warmup_epochs / epochs if warmup_epochs > 0 else 0.25,
                 div_factor=25,
                 final_div_factor=10000,
                 anneal_strategy="cos",
-                last_epoch=-1,  # Important: start from -1 to avoid the warning
             )
             self.logger.info(
                 f"Using OneCycleLR scheduler with {warmup_epochs} warmup epochs"
@@ -316,10 +313,9 @@ class Trainer:
         else:
             return 224
 
-    def train_epoch(self) -> float:
+    def train_epoch(self) -> Tuple[float, float]:
         """Train for one epoch."""
         self.model.train()
-        self.first_batch_in_epoch = True  # Reset flag at start of epoch
 
         total_loss = 0.0
         correct = 0
@@ -352,7 +348,7 @@ class Trainer:
 
             # Forward pass with mixed precision
             if self.scaler is not None:
-                with autocast('cuda'):
+                with autocast("cuda"):
                     outputs = self.model(images)
                     if isinstance(labels, tuple):  # Mixed labels from cutmix/mixup
                         loss = labels[2] * F.cross_entropy(outputs, labels[0]) + (
@@ -404,12 +400,8 @@ class Trainer:
 
             # Update scheduler (must be after optimizer.step())
             if self.scheduler is not None:
-                # OneCycleLR needs to be stepped after each batch
-                # Skip the very first step to avoid warning about calling before optimizer.step()
-                if not (self.first_batch_in_epoch and batch_idx == 0 and self.current_epoch == 0):
-                    self.scheduler.step()
-                elif batch_idx == 0 and self.current_epoch == 0:
-                    self.first_batch_in_epoch = False
+                self.scheduler.step()
+                self.global_step += 1
 
             # Update EMA
             if self.ema_model is not None and batch_idx % 10 == 0:
@@ -481,7 +473,7 @@ class Trainer:
 
                 # Use autocast for validation to match training precision
                 if self.scaler is not None:
-                    with autocast('cuda'):
+                    with autocast("cuda"):
                         outputs = model(images)
                         loss = F.cross_entropy(outputs, labels)
                 else:
@@ -723,16 +715,34 @@ class Trainer:
                 ) == 0 or is_best:
                     self.save_checkpoint(is_best)
 
-                # Early stopping
-                if val_acc >= self.config.get("target_accuracy", 100):
+            # Early stopping check - only rank 0 decides
+            if self.rank == 0:
+                should_stop = val_acc >= self.config.get("target_accuracy", 100)
+                if should_stop:
                     self.logger.info(
                         f"Target accuracy {self.config['target_accuracy']}% reached!"
                     )
-                    break
+            else:
+                should_stop = False
 
-            # Synchronize processes
+            # Broadcast the stopping decision to all ranks
             if self.distributed:
-                dist.barrier()
+                # Create tensor on all ranks
+                if self.rank == 0:
+                    stop_tensor = torch.tensor(
+                        [1.0 if should_stop else 0.0], device=self.device
+                    )
+                else:
+                    stop_tensor = torch.tensor([0.0], device=self.device)
+
+                # All ranks participate in broadcast
+                dist.broadcast(stop_tensor, src=0)
+
+                # All ranks get the result
+                should_stop = stop_tensor.item() > 0.5
+
+            if should_stop:
+                break
 
         if self.rank == 0:
             self.logger.info(
@@ -745,11 +755,15 @@ def setup_distributed(rank: int, world_size: int):
     os.environ["MASTER_ADDR"] = os.environ.get("MASTER_ADDR", "localhost")
     os.environ["MASTER_PORT"] = os.environ.get("MASTER_PORT", "12355")
 
+    # Set device before init_process_group to avoid warnings
+    torch.cuda.set_device(rank)
+
+    # Initialize process group
     dist.init_process_group(
         backend="nccl", init_method="env://", world_size=world_size, rank=rank
     )
 
-    torch.cuda.set_device(rank)
+    # Initial synchronization
     dist.barrier()
 
 
