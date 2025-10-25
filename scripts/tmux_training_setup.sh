@@ -6,9 +6,9 @@ set -e
 
 # Configuration
 SESSION_NAME=${SESSION_NAME:-resnet_training}
-PROJECT_DIR=${PROJECT_DIR:-~/assignment_9}
+PROJECT_DIR=${PROJECT_DIR:-/data/assignment_9}
 FFCV_DIR=${FFCV_DIR:-/data/ffcv}
-LOG_DIR=${LOG_DIR:-./logs}
+LOG_DIR=${LOG_DIR:-$PROJECT_DIR/logs}
 
 # Colors
 GREEN='\033[0;32m'

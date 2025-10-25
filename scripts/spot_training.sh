@@ -5,9 +5,9 @@
 set -e
 
 # Configuration
-PROJECT_DIR=${PROJECT_DIR:-/data/resnet50-imagenet}
+PROJECT_DIR=${PROJECT_DIR:-/data/assignment_9}
 FFCV_DIR=${FFCV_DIR:-/data/ffcv}
-CHECKPOINT_DIR=${CHECKPOINT_DIR:-$PROJECT_DIR/checkpoints}
+CHECKPOINT_DIR=${CHECKPOINT_DIR:-/data/checkpoints}
 LOG_DIR=${LOG_DIR:-$PROJECT_DIR/logs}
 
 # Colors for output

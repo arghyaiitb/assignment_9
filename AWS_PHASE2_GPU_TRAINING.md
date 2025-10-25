@@ -41,10 +41,10 @@ aws ec2 describe-spot-price-history \
   --instance-types p4d.24xlarge \
   --max-results 1
 
-# Launch p4d.24xlarge with NVIDIA Deep Learning AMI
+# Launch p4d.24xlarge with NVIDIA Deep Learning AMI (Ubuntu 22.04 based)
 GPU_INSTANCE_ID=$(aws ec2 run-instances \
   --region us-east-1 \
-  --image-id ami-0e3b9734bf8e3d64b \  # NVIDIA Deep Learning AMI
+  --image-id ami-0c293f3f676ec98a0 \  # NVIDIA Deep Learning AMI (check latest)
   --instance-type p4d.24xlarge \
   --key-name $KEY_NAME \
   --subnet-id $SUBNET_ID \
@@ -91,32 +91,42 @@ echo "==============================================="
 ssh -i your-key.pem ubuntu@$PUBLIC_IP
 ```
 
-Once logged in, run the **spot-instance-safe** training script:
+Once logged in, run these commands:
 
 ```bash
-# Run the spot instance training script (handles interruptions automatically!)
-bash /data/resnet50-imagenet/scripts/spot_training.sh
-```
+# 1. Mount your data volume (p4d uses NVMe naming)
+lsblk  # Check for your 400GB volume (likely /dev/nvme1n1)
 
-Or use the tmux setup:
+# Mount the volume (replace nvme1n1 with actual device if different)
+sudo mkdir -p /data
+sudo mount -o noatime,nodiratime /dev/nvme1n1 /data
+sudo chown ubuntu:ubuntu /data
 
-```bash
-# 1. Activate PyTorch environment (pre-installed on NVIDIA AMI)
+# 2. Verify data from Phase 1
+ls -lah /data/
+# Should show: assignment_9/, ffcv/, huggingface_cache/, DATA_READY.txt
+
+ls -lah /data/ffcv/
+# Should show: train.ffcv (~140GB), val.ffcv (~6GB)
+
+# 3. Navigate to project
+cd /data/assignment_9
+
+# 4. Activate PyTorch environment (pre-installed on NVIDIA AMI)
 source /opt/conda/etc/profile.d/conda.sh
 conda activate pytorch
 
-# 2. Mount your data
-sudo mount /dev/xvdf /data  # or /dev/nvme1n1 for Nitro
-sudo chown ubuntu:ubuntu /data
+# 5. Verify GPUs
+nvidia-smi  # Should show 8× A100 GPUs!
 
-# 3. Verify data and GPUs
-ls -lah /data/ffcv/  # Should show train.ffcv and val.ffcv
-nvidia-smi  # Should show 8x A100 GPUs!
+# 6. Start training with automated script
+bash scripts/spot_training.sh
+```
 
-# 4. Navigate to project
-cd /data/resnet50-imagenet
+Or use the tmux monitoring setup:
 
-# 5. Start training with tmux monitoring
+```bash
+# Alternative: Use tmux for monitoring
 bash scripts/tmux_training_setup.sh
 ```
 
@@ -163,9 +173,12 @@ Navigate between windows:
 # Training will save best model automatically
 # Check results
 ls -lah /data/checkpoints/
-cat /data/checkpoints/training_summary.txt
+ls -lah /data/assignment_9/checkpoints/  # Alternative location
 
-# Exit tmux
+# View training logs
+tail -n 50 /data/assignment_9/logs/*.log
+
+# Exit tmux (if used)
 exit  # From tmux
 exit  # From SSH
 ```
@@ -258,6 +271,16 @@ echo "✅ Training complete! Model saved on EBS: $EBS_VOLUME_ID"
 
 ## 🆘 Troubleshooting
 
+### Device Not Found (/dev/xvdf vs /dev/nvme1n1)
+```bash
+# p4d instances use NVMe device naming
+lsblk  # Find your 400GB volume
+
+# Usually one of:
+/dev/nvme1n1  # Most common on Nitro instances
+/dev/nvme2n1  # If instance has local NVMe
+```
+
 ### CUDA Out of Memory
 ```bash
 # Reduce batch size (unlikely with 40GB per GPU!)
@@ -289,7 +312,7 @@ Our code now **automatically handles spot instance interruptions**:
 #### When Spot Instance is Terminated:
 ```bash
 # Just launch a new instance and run the same command!
-bash /data/resnet50-imagenet/scripts/spot_training.sh
+bash /data/assignment_9/scripts/spot_training.sh
 
 # The script will automatically:
 # 1. Find the latest checkpoint
@@ -343,11 +366,17 @@ To use your trained model later:
 
 ```bash
 # Launch any instance (even CPU)
-# Attach the EBS
-# Mount at /data
-# Your model is at:
+# Attach the EBS volume
+# Mount at /data (use lsblk to find device)
+sudo mount /dev/nvme1n1 /data  # Or appropriate device
+
+# Your models are at:
 /data/checkpoints/best_model.pt
-/data/checkpoints/checkpoint_epoch_90.pt
+/data/checkpoints/checkpoint_latest.pt
+/data/checkpoints/checkpoint_epoch_60.pt
+
+# Or in project directory:
+/data/assignment_9/checkpoints/
 ```
 
 ## 🏁 Summary

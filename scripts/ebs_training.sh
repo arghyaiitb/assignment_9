@@ -9,12 +9,12 @@ echo "ResNet-50 Training with Prepared EBS Data"
 echo "=================================================="
 
 # Configuration
-EBS_DEVICE=${EBS_DEVICE:-/dev/xvdf}
+EBS_DEVICE=${EBS_DEVICE:-/dev/nvme1n1}  # Nitro instances use NVMe naming
 MOUNT_POINT=${MOUNT_POINT:-/data}
 FFCV_DIR=${FFCV_DIR:-$MOUNT_POINT/ffcv}
 CHECKPOINT_DIR=${CHECKPOINT_DIR:-$MOUNT_POINT/checkpoints}
 LOG_DIR=${LOG_DIR:-$MOUNT_POINT/logs}
-PROJECT_DIR=${PROJECT_DIR:-~/assignment_9}
+PROJECT_DIR=${PROJECT_DIR:-$MOUNT_POINT/assignment_9}
 
 # Training configuration
 BATCH_SIZE=${BATCH_SIZE:-2048}
