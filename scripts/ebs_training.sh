@@ -205,6 +205,10 @@ echo "Logs: $LOG_DIR/$RUN_NAME"
 echo "=================================================="
 echo ""
 
+# Export environment variables for Python to use
+export CHECKPOINT_DIR="$CHECKPOINT_DIR/$RUN_NAME"
+export LOG_DIR="$LOG_DIR/$RUN_NAME"
+
 # Build training command
 TRAINING_CMD="python3 main.py $TRAINING_MODE \
     --use-ffcv \

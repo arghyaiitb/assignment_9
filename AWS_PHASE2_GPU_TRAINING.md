@@ -44,17 +44,15 @@ aws ec2 describe-spot-price-history \
 # Launch p4d.24xlarge with NVIDIA Deep Learning AMI (Ubuntu 22.04 based)
 GPU_INSTANCE_ID=$(aws ec2 run-instances \
   --region us-east-1 \
-  --image-id ami-0c293f3f676ec98a0 \  # NVIDIA Deep Learning AMI (check latest)
+  --image-id ami-082cfdbb3062d6871 \
   --instance-type p4d.24xlarge \
-  --key-name $KEY_NAME \
-  --subnet-id $SUBNET_ID \
-  --security-group-ids $SECURITY_GROUP \
-  --instance-market-options '{"MarketType":"spot","SpotOptions":{"MaxPrice":"12.00","SpotInstanceType":"one-time"}}' \
+  --subnet-id "$SUBNET_ID" \
+  --security-group-ids "$SECURITY_GROUP" \
+  --instance-market-options '{"MarketType":"spot","SpotOptions":{"MaxPrice":"10.00","SpotInstanceType":"one-time"}}' \
   --block-device-mappings '[{"DeviceName":"/dev/sda1","Ebs":{"VolumeSize":200,"VolumeType":"gp3","Iops":16000}}]' \
   --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=resnet50-training-a100}]' \
   --query 'Instances[0].InstanceId' \
   --output text)
-
 echo "GPU Instance: $GPU_INSTANCE_ID"
 ```
 
@@ -99,7 +97,7 @@ lsblk  # Check for your 400GB volume (likely /dev/nvme1n1)
 
 # Mount the volume (replace nvme1n1 with actual device if different)
 sudo mkdir -p /data
-sudo mount -o noatime,nodiratime /dev/nvme1n1 /data
+sudo mount -o noatime,nodiratime /dev/nvme9n1 /data
 sudo chown ubuntu:ubuntu /data
 
 # 2. Verify data from Phase 1

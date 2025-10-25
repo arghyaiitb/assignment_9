@@ -31,11 +31,11 @@ from dataset import (
     NUM_CLASSES,
 )
 
-# Training constants
-CHECKPOINT_DIR = Path("./checkpoints")
-LOG_DIR = Path("./logs")
-CHECKPOINT_DIR.mkdir(exist_ok=True)
-LOG_DIR.mkdir(exist_ok=True)
+# Training constants - can be overridden by environment variables
+CHECKPOINT_DIR = Path(os.environ.get("CHECKPOINT_DIR", "./checkpoints"))
+LOG_DIR = Path(os.environ.get("LOG_DIR", "./logs"))
+CHECKPOINT_DIR.mkdir(exist_ok=True, parents=True)
+LOG_DIR.mkdir(exist_ok=True, parents=True)
 
 
 class Trainer:
