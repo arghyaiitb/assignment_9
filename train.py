@@ -476,6 +476,21 @@ class Trainer:
     def validate(self) -> Tuple[float, float]:
         """Validate the model."""
         self.logger.info(f"[DEBUG][Rank {self.rank}] validate() function entered")
+        
+        # CRITICAL FIX: FFCV distributed validation is broken - only rank 0 validates
+        if self.distributed and self.rank != 0:
+            self.logger.info(f"[DEBUG][Rank {self.rank}] Skipping validation (only rank 0 validates with FFCV)")
+            # Wait to receive validation metrics from rank 0
+            self.logger.info(f"[DEBUG][Rank {self.rank}] Waiting for validation metrics from rank 0")
+            metrics_tensor = torch.zeros(2, device=self.device, dtype=torch.float32)
+            dist.broadcast(metrics_tensor, src=0)
+            accuracy = metrics_tensor[0].item()
+            avg_loss = metrics_tensor[1].item()
+            self.logger.info(f"[DEBUG][Rank {self.rank}] Received validation metrics: acc={accuracy:.2f}%, loss={avg_loss:.4f}")
+            self.logger.info(f"[DEBUG][Rank {self.rank}] validate() function returning")
+            return accuracy, avg_loss
+        
+        # Only rank 0 (or non-distributed) performs actual validation
         model = self.ema_model if self.ema_model is not None else self.model
         model.eval()
 
@@ -519,44 +534,15 @@ class Trainer:
         avg_loss = total_loss / len(self.val_loader)
         accuracy = 100.0 * correct / total if total > 0 else 0
         self.logger.info(
-            f"[DEBUG][Rank {self.rank}] Local validation metrics: acc={accuracy:.2f}%, loss={avg_loss:.4f}"
+            f"[DEBUG][Rank {self.rank}] Validation metrics: acc={accuracy:.2f}%, loss={avg_loss:.4f}"
         )
 
-        # Aggregate metrics across all GPUs if distributed
+        # Broadcast metrics to other ranks (only rank 0 validates with FFCV)
         if self.distributed:
-            self.logger.info(
-                f"[DEBUG][Rank {self.rank}] Starting distributed metrics aggregation"
-            )
-            # Convert to tensors for all-reduce
-            metrics = torch.tensor(
-                [correct, total, total_loss], dtype=torch.float32, device=self.device
-            )
-            self.logger.info(
-                f"[DEBUG][Rank {self.rank}] Entering all_reduce for validation metrics"
-            )
-            dist.all_reduce(metrics, op=dist.ReduceOp.SUM)
-            self.logger.info(f"[DEBUG][Rank {self.rank}] all_reduce completed")
-
-            # Extract aggregated values
-            self.logger.info(
-                f"[DEBUG][Rank {self.rank}] Extracting metrics from tensor"
-            )
-            correct = metrics[0].item()
-            self.logger.info(f"[DEBUG][Rank {self.rank}] Extracted correct: {correct}")
-            total = metrics[1].item()
-            self.logger.info(f"[DEBUG][Rank {self.rank}] Extracted total: {total}")
-            total_loss = metrics[2].item()
-            self.logger.info(
-                f"[DEBUG][Rank {self.rank}] Extracted total_loss: {total_loss}"
-            )
-
-            # Recalculate with global values
-            self.logger.info(f"[DEBUG][Rank {self.rank}] Calculating global metrics")
-            avg_loss = total_loss / (len(self.val_loader) * self.world_size)
-            accuracy = 100.0 * correct / total if total > 0 else 0
-            self.logger.info(
-                f"[DEBUG][Rank {self.rank}] Global validation metrics: acc={accuracy:.2f}%, loss={avg_loss:.4f}"
-            )
+            self.logger.info(f"[DEBUG][Rank {self.rank}] Broadcasting validation metrics to other ranks")
+            metrics_tensor = torch.tensor([accuracy, avg_loss], device=self.device, dtype=torch.float32)
+            dist.broadcast(metrics_tensor, src=0)
+            self.logger.info(f"[DEBUG][Rank {self.rank}] Broadcast completed")
 
         self.logger.info(f"[DEBUG][Rank {self.rank}] validate() function returning")
         return accuracy, avg_loss
@@ -774,7 +760,7 @@ class Trainer:
                 f"[DEBUG][Rank {self.rank}] Training epoch {epoch + 1} completed"
             )
 
-            # Validation - all ranks participate but only rank 0 saves
+            # Validation - only rank 0 validates with FFCV, broadcasts results to others
             self.logger.info(
                 f"[DEBUG][Rank {self.rank}] Starting validation for epoch {epoch + 1}"
             )
@@ -782,16 +768,6 @@ class Trainer:
             self.logger.info(
                 f"[DEBUG][Rank {self.rank}] Validation completed. Acc: {val_acc:.2f}%"
             )
-
-            # Synchronize all ranks after validation before any rank-specific operations
-            if self.distributed:
-                self.logger.info(
-                    f"[DEBUG][Rank {self.rank}] Entering barrier after validation"
-                )
-                dist.barrier()
-                self.logger.info(
-                    f"[DEBUG][Rank {self.rank}] Passed barrier after validation"
-                )
 
             if self.rank == 0:
                 # Log results

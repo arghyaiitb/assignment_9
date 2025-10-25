@@ -323,15 +323,18 @@ def get_ffcv_loaders(
         seed=seed if seed is not None else 42,
     )
 
+    # CRITICAL FIX: FFCV has a bug in distributed validation mode where ranks 1-7
+    # hang during iteration. Workaround: Always use distributed=False for validation.
+    # Only rank 0 will actually validate (handled in train.py), others will skip.
     val_loader = Loader(
         str(val_path),
-        batch_size=batch_size,
+        batch_size=batch_size * (8 if distributed else 1),  # Increase batch size if distributed since only rank 0 validates
         num_workers=num_workers,
         order=OrderOption.SEQUENTIAL,
-        drop_last=True,  # CRITICAL: Must be True in distributed mode to ensure all ranks get same number of batches
+        drop_last=False,
         pipelines={"image": val_pipeline, "label": label_pipeline},
         os_cache=True,
-        distributed=distributed,
+        distributed=False,  # CRITICAL: Always False - FFCV distributed validation is broken
     )
 
     return train_loader, val_loader
