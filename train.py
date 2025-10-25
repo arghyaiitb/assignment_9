@@ -668,12 +668,20 @@ class Trainer:
             if self.config.get("progressive_resize", False) and self.use_ffcv:
                 new_size = self._get_image_size(epoch)
                 if epoch == 0 or new_size != self._get_image_size(epoch - 1):
-                    self.logger.info(f"Updating image size to {new_size}")
+                    if self.rank == 0:
+                        self.logger.info(f"Updating image size to {new_size}")
                     self._build_dataloaders()
+                    # Ensure all ranks finish rebuilding loaders before continuing
+                    if self.distributed:
+                        dist.barrier()
 
             # Set epoch for distributed sampler
             if self.distributed and hasattr(self.train_loader, "sampler"):
                 self.train_loader.sampler.set_epoch(epoch)
+
+            # Synchronize all ranks before starting epoch
+            if self.distributed:
+                dist.barrier()
 
             # Train for one epoch
             if self.rank == 0:
@@ -685,6 +693,10 @@ class Trainer:
 
             # Validation - all ranks participate but only rank 0 saves
             val_acc, val_loss = self.validate()
+
+            # Synchronize all ranks after validation before any rank-specific operations
+            if self.distributed:
+                dist.barrier()
 
             if self.rank == 0:
                 # Log results
