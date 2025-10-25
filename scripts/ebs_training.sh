@@ -14,7 +14,7 @@ MOUNT_POINT=${MOUNT_POINT:-/data}
 FFCV_DIR=${FFCV_DIR:-$MOUNT_POINT/ffcv}
 CHECKPOINT_DIR=${CHECKPOINT_DIR:-$MOUNT_POINT/checkpoints}
 LOG_DIR=${LOG_DIR:-$MOUNT_POINT/logs}
-PROJECT_DIR=${PROJECT_DIR:-~/resnet50-imagenet}
+PROJECT_DIR=${PROJECT_DIR:-~/assignment_9}
 
 # Training configuration
 BATCH_SIZE=${BATCH_SIZE:-2048}
@@ -109,10 +109,10 @@ echo "Step 4: Setting up project..."
 if [ ! -d "$PROJECT_DIR" ]; then
     print_info "Cloning project repository..."
     cd ~
-    git clone https://github.com/yourusername/resnet50-imagenet.git || {
+    git clone https://github.com/arghyaiitb/assignment_9.git || {
         # If can't clone, try using the one on EBS
-        if [ -d "$MOUNT_POINT/resnet50-imagenet" ]; then
-            cp -r $MOUNT_POINT/resnet50-imagenet $PROJECT_DIR
+        if [ -d "$MOUNT_POINT/assignment_9" ]; then
+            cp -r $MOUNT_POINT/assignment_9 $PROJECT_DIR
             print_warning "Using project from EBS"
         else
             print_error "Could not get project files"

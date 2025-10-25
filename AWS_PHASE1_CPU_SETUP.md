@@ -95,15 +95,19 @@ Once logged in, run these commands:
 sudo apt-get update && sudo apt-get install -y git tmux htop
 
 # 2. Mount the EBS volume
-sudo mkfs -t xfs /dev/xvdf  # Only first time! Skip if already formatted
+# First, find the device name (Nitro instances use NVMe naming)
+lsblk  # Look for your 400GB volume (likely /dev/nvme1n1)
+
+# Format and mount (replace nvme1n1 with your actual device)
+sudo mkfs -t xfs /dev/nvme1n1  # Only first time! Skip if already formatted
 sudo mkdir /data
-sudo mount -o noatime,nodiratime /dev/xvdf /data
+sudo mount -o noatime,nodiratime /dev/nvme1n1 /data
 sudo chown ubuntu:ubuntu /data
 
 # 3. Clone your project (or download the script)
 cd /data
-git clone https://github.com/yourusername/resnet50-imagenet.git
-cd resnet50-imagenet
+git clone https://github.com/arghyaiitb/assignment_9.git
+cd assignment_9
 
 # 4. Run the automated setup script
 bash scripts/ebs_data_prep.sh
@@ -122,7 +126,7 @@ huggingface-cli login
 tmux new -s ffcv
 
 # 3. Convert ImageNet to FFCV (this is the main task - takes ~1 hour)
-cd /data/resnet50-imagenet
+cd /data/assignment_9
 python main.py convert-ffcv --ffcv-dir /data/ffcv
 
 # Monitor progress in another tmux pane (Ctrl-B %)
@@ -193,13 +197,25 @@ The `scripts/ebs_data_prep.sh` script automates:
 If you prefer manual setup instead of the script:
 
 ```bash
-# System packages
+# System packages (including OpenCV dependencies for FFCV)
 sudo apt-get update
-sudo apt-get install -y python3.10 python3-pip git tmux htop
+sudo apt-get install -y \
+    python3.10 \
+    python3-pip \
+    git \
+    tmux \
+    htop \
+    libopencv-dev \
+    python3-opencv \
+    pkg-config \
+    libturbojpeg-dev \
+    libopenjp2-7-dev \
+    libjpeg-dev
 
 # Python packages
 pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-pip3 install datasets huggingface_hub ffcv numpy tqdm
+pip3 install datasets huggingface_hub numpy tqdm
+pip3 install ffcv  # Install after OpenCV system libs
 pip3 install albumentations opencv-python wandb
 
 # Environment setup
@@ -225,6 +241,11 @@ The setup is optimized for speed:
 
 ## 🆘 Troubleshooting
 
+### "No such file or directory" for /dev/xvdf
+- **Cause**: Nitro instances (c5a, c5, m5, etc.) use NVMe device naming
+- **Solution**: Run `lsblk` to find your device (usually `/dev/nvme1n1`)
+- **Fix**: Use `export EBS_DEVICE=/dev/nvme1n1` before running the script
+
 ### "No space left on device"
 - Check: `df -h /data`
 - Solution: Ensure 400GB EBS is attached and mounted
@@ -233,6 +254,14 @@ The setup is optimized for speed:
 - Check CPU usage: `htop`
 - Solution: Should show ~100% CPU usage across all cores
 - If not, restart with more workers
+
+### "Could not find required package: opencv" (FFCV install error)
+- **Cause**: Missing OpenCV system libraries
+- **Solution**: Install system dependencies first:
+  ```bash
+  sudo apt-get install -y libopencv-dev python3-opencv pkg-config libturbojpeg-dev libopenjp2-7-dev libjpeg-dev
+  pip install ffcv
+  ```
 
 ### "HuggingFace authentication failed"
 - Run: `huggingface-cli login`
