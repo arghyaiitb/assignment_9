@@ -24,22 +24,23 @@ This guide shows how to:
 ```bash
 # Create a 250GB GP3 SSD in your preferred region (e.g., us-east-1)
 aws ec2 create-volume \
-    --size 250 \
-    --volume-type gp3 \
-    --availability-zone us-east-1a \
-    --tag-specifications 'ResourceType=volume,Tags=[{Key=Name,Value=imagenet-data}]' \
-    --iops 10000 \
-    --throughput 250
+  --region us-east-1 \
+  --size 400 \
+  --volume-type gp3 \
+  --availability-zone us-east-1a \
+  --iops 10000 \
+  --throughput 250 \
+  --tag-specifications 'ResourceType=volume,Tags=[{Key=Name,Value=imagenet-data}]'
 
 # Note the VolumeId (e.g., vol-0123456789abcdef)
 # Save this ID - you'll need it multiple times!
-export EBS_VOLUME_ID=vol-0123456789abcdef  # Replace with your actual ID
+export EBS_VOLUME_ID=vol-0468159ea0a0112aa  # Replace with your actual ID
 ```
 
 ### Step 1.2: Wait for Volume Creation
 ```bash
 # Check volume status
-aws ec2 describe-volumes --volume-ids $EBS_VOLUME_ID
+aws ec2 describe-volumes --region us-east-1 --volume-ids $EBS_VOLUME_ID
 
 # Wait until State shows "available"
 ```
@@ -62,7 +63,7 @@ aws ec2 run-instances \
     --user-data file://data_prep_script.sh
 
 # Note the InstanceId
-export PREP_INSTANCE_ID=i-0123456789abcdef  # Replace with actual
+export PREP_INSTANCE_ID=i-027dd5fb0f01b62b4  # Replace with actual
 ```
 
 ### Step 2.2: Create Data Preparation Script
