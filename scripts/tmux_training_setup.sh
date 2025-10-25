@@ -51,8 +51,18 @@ if tmux has-session -t $SESSION_NAME 2>/dev/null; then
 fi
 
 # Parse training command arguments
-BATCH_SIZE=${1:-2048}
-EPOCHS=${2:-100}
+# Auto-detect and optimize for p4d.24xlarge (8× A100s)
+NUM_GPUS=$(nvidia-smi -L | wc -l)
+if [ "$NUM_GPUS" -eq 8 ] && nvidia-smi | grep -q "A100"; then
+    # Optimized for p4d.24xlarge
+    BATCH_SIZE=${1:-2048}  # 256 per GPU × 8
+    EPOCHS=${2:-60}        # Converges faster
+    echo -e "${GREEN}Detected p4d.24xlarge: Using optimized settings for 8× A100s${NC}"
+else
+    # Default for other instances
+    BATCH_SIZE=${1:-1024}
+    EPOCHS=${2:-90}
+fi
 USE_DISTRIBUTED=${3:-true}
 
 # Determine training command
@@ -70,7 +80,8 @@ TRAINING_CMD="python main.py $TRAINING_MODE \\
     --progressive-resize \\
     --use-ema \\
     --compile \\
-    --checkpoint-interval 10"
+    --checkpoint-interval 5 \\
+    --auto-resume"
 
 echo -e "${GREEN}Creating tmux session: $SESSION_NAME${NC}"
 echo "Training command: $TRAINING_MODE mode with batch_size=$BATCH_SIZE"

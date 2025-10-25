@@ -1,13 +1,15 @@
-# ResNet-50 ImageNet Training - Under $6 on AWS
+# ResNet-50 ImageNet Training - Under $10 on AWS
 
-Train ResNet-50 on ImageNet-1K to achieve **78% top-1 accuracy** for **under $6 total cost** using AWS spot instances and optimized data preparation.
+Train ResNet-50 on ImageNet-1K to achieve **78% top-1 accuracy** in just **45 minutes** using AWS p4d.24xlarge with 8× A100 GPUs!
 
 ## 🎯 Quick Start - Just Follow 2 Guides
 
 1. **[AWS_PHASE1_CPU_SETUP.md](AWS_PHASE1_CPU_SETUP.md)** - Prepare data on c5a.4xlarge CPU instance (1 hour, $0.62)
-2. **[AWS_PHASE2_GPU_TRAINING.md](AWS_PHASE2_GPU_TRAINING.md)** - Train on p3.8xlarge GPU spot instance (1.5 hours, $5.25)
+2. **[AWS_PHASE2_GPU_TRAINING.md](AWS_PHASE2_GPU_TRAINING.md)** - Train on p4d.24xlarge GPU spot instance (45 minutes, $8.25)
 
-**Total: 2.5 hours, $5.87 - Achieve 78% accuracy!** ✅
+**Total: < 2 hours, $8.87 - Achieve 78% accuracy!** ✅
+
+**Alternative: p3.8xlarge (4× V100) - 90 minutes, $5.25 total**
 
 > **💡 Local Development**: This README also covers local setup, testing, and development. For AWS training, just follow the two guides above.
 

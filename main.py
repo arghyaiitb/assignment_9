@@ -156,6 +156,18 @@ def parse_arguments():
     # Checkpoint arguments
     parser.add_argument("--resume", type=str, help="Path to checkpoint to resume from")
     parser.add_argument(
+        "--auto-resume",
+        action="store_true",
+        default=True,
+        help="Automatically resume from latest checkpoint if available (default: True)",
+    )
+    parser.add_argument(
+        "--no-auto-resume",
+        action="store_false",
+        dest="auto_resume",
+        help="Disable automatic resume from latest checkpoint",
+    )
+    parser.add_argument(
         "--checkpoint-interval",
         type=int,
         default=5,
@@ -246,6 +258,7 @@ def prepare_config(args) -> Dict[str, Any]:
         "dist_backend": args.dist_backend,
         # Checkpointing
         "resume": args.resume,
+        "auto_resume": args.auto_resume,
         "checkpoint_interval": args.checkpoint_interval,
         # Other
         "seed": args.seed,

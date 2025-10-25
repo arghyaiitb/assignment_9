@@ -5,14 +5,10 @@ Supports both single-GPU and multi-GPU distributed training.
 """
 
 import os
-import sys
-import time
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import torch.distributed as dist
-import torch.multiprocessing as mp
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim.lr_scheduler import OneCycleLR, CosineAnnealingLR
 from torch.optim.swa_utils import AveragedModel
@@ -32,8 +28,6 @@ from dataset import (
     get_ffcv_loaders,
     get_pytorch_loaders,
     FFCV_AVAILABLE,
-    IMAGENET_MEAN,
-    IMAGENET_STD,
     NUM_CLASSES,
 )
 
@@ -59,6 +53,7 @@ class Trainer:
         self.val_loader = None
         self.best_accuracy = 0.0
         self.current_epoch = 0
+        self.start_epoch = 0  # For resuming training
 
         # Distributed training state
         self.distributed = config.get("distributed", False)
@@ -87,6 +82,9 @@ class Trainer:
                 self.model.module if self.distributed else self.model,
                 avg_fn=lambda avg, model, num: 0.9999 * avg + 0.0001 * model,
             )
+
+        # Resume from checkpoint if specified
+        self._resume_from_checkpoint()
 
     def _setup_device(self):
         """Setup CUDA device for training."""
@@ -207,6 +205,18 @@ class Trainer:
         self.logger.info(
             f"Optimizer: SGD (lr={base_lr}, momentum={self.config.get('momentum', 0.9)})"
         )
+
+        # Log multi-GPU setup details
+        if self.distributed and self.rank == 0:
+            self.logger.info(f"\n🚀 Distributed Training Configuration:")
+            self.logger.info(f"   World Size: {self.world_size} GPUs")
+            self.logger.info(f"   Backend: {self.config.get('dist_backend', 'nccl')}")
+            self.logger.info(f"   Total Batch Size: {self.config['batch_size']}")
+            self.logger.info(
+                f"   Per-GPU Batch Size: {self.config['batch_size'] // self.world_size}"
+            )
+            self.logger.info(f"   Base LR: {self.config.get('lr', 0.1):.4f}")
+            self.logger.info(f"   Effective LR (scaled): {base_lr:.4f}")
 
     def _build_scheduler(self):
         """Build learning rate scheduler."""
@@ -356,6 +366,26 @@ class Trainer:
         avg_loss = total_loss / len(self.train_loader)
         accuracy = 100.0 * correct / total if total > 0 else 0
 
+        # Aggregate training metrics across all GPUs if distributed
+        if self.distributed:
+            # Convert metrics to tensors for all-reduce
+            metrics = torch.tensor(
+                [correct, total, total_loss, len(self.train_loader)],
+                dtype=torch.float32,
+                device=self.device,
+            )
+            dist.all_reduce(metrics, op=dist.ReduceOp.SUM)
+
+            # Extract aggregated values
+            correct = metrics[0].item()
+            total = metrics[1].item()
+            total_loss = metrics[2].item()
+            num_batches = metrics[3].item()
+
+            # Recalculate with global values
+            avg_loss = total_loss / num_batches
+            accuracy = 100.0 * correct / total if total > 0 else 0
+
         return accuracy, avg_loss
 
     def validate(self) -> Tuple[float, float]:
@@ -386,7 +416,24 @@ class Trainer:
                 correct += predicted.eq(labels).sum().item()
 
         avg_loss = total_loss / len(self.val_loader)
-        accuracy = 100.0 * correct / total
+        accuracy = 100.0 * correct / total if total > 0 else 0
+
+        # Aggregate metrics across all GPUs if distributed
+        if self.distributed:
+            # Convert to tensors for all-reduce
+            metrics = torch.tensor(
+                [correct, total, total_loss], dtype=torch.float32, device=self.device
+            )
+            dist.all_reduce(metrics, op=dist.ReduceOp.SUM)
+
+            # Extract aggregated values
+            correct = metrics[0].item()
+            total = metrics[1].item()
+            total_loss = metrics[2].item()
+
+            # Recalculate with global values
+            avg_loss = total_loss / (len(self.val_loader) * self.world_size)
+            accuracy = 100.0 * correct / total if total > 0 else 0
 
         return accuracy, avg_loss
 
@@ -403,21 +450,21 @@ class Trainer:
         cut_rat = np.sqrt(1.0 - lam)
         cut_w = int(W * cut_rat)
         cut_h = int(H * cut_rat)
-        
+
         cx = np.random.randint(W)
         cy = np.random.randint(H)
-        
+
         x1 = np.clip(cx - cut_w // 2, 0, W)
         y1 = np.clip(cy - cut_h // 2, 0, H)
         x2 = np.clip(cx + cut_w // 2, 0, W)
         y2 = np.clip(cy + cut_h // 2, 0, H)
-        
+
         # Apply CutMix
         images[:, :, y1:y2, x1:x2] = images[index, :, y1:y2, x1:x2]
-        
+
         # Adjust lambda
         lam = 1 - ((x2 - x1) * (y2 - y1) / (W * H))
-        
+
         return images, (labels, labels[index], lam)
 
     def _mixup(self, images, labels):
@@ -445,6 +492,10 @@ class Trainer:
             "optimizer_state_dict": self.optimizer.state_dict(),
             "best_accuracy": self.best_accuracy,
             "config": self.config,
+            "scheduler_state_dict": self.scheduler.state_dict()
+            if self.scheduler
+            else None,
+            "scaler_state_dict": self.scaler.state_dict() if self.scaler else None,
         }
 
         if self.ema_model is not None:
@@ -453,7 +504,11 @@ class Trainer:
         # Save regular checkpoint
         checkpoint_path = CHECKPOINT_DIR / f"checkpoint_epoch_{self.current_epoch}.pt"
         torch.save(checkpoint, checkpoint_path)
-        
+
+        # Also save as 'latest' for easy auto-resume
+        latest_path = CHECKPOINT_DIR / "checkpoint_latest.pt"
+        torch.save(checkpoint, latest_path)
+
         # Save best checkpoint
         if is_best:
             best_path = CHECKPOINT_DIR / "best_model.pt"
@@ -462,11 +517,79 @@ class Trainer:
                 f"Saved best model with accuracy: {self.best_accuracy:.2f}%"
             )
 
+    def _find_latest_checkpoint(self) -> Optional[Path]:
+        """Find the latest checkpoint file for auto-resume."""
+        # First check for explicit latest checkpoint
+        latest_path = CHECKPOINT_DIR / "checkpoint_latest.pt"
+        if latest_path.exists():
+            return latest_path
+
+        # Otherwise find the highest epoch checkpoint
+        checkpoints = list(CHECKPOINT_DIR.glob("checkpoint_epoch_*.pt"))
+        if checkpoints:
+            # Sort by epoch number
+            checkpoints.sort(key=lambda x: int(x.stem.split("_")[-1]))
+            return checkpoints[-1]
+
+        return None
+
+    def _resume_from_checkpoint(self):
+        """Resume training from checkpoint if specified or auto-detect."""
+        checkpoint_path = None
+
+        # Check if explicit resume path is provided
+        if self.config.get("resume"):
+            checkpoint_path = Path(self.config["resume"])
+            if not checkpoint_path.exists():
+                self.logger.error(f"Checkpoint not found: {checkpoint_path}")
+                raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
+
+        # Auto-resume: check for latest checkpoint if enabled
+        elif self.config.get("auto_resume", True):
+            checkpoint_path = self._find_latest_checkpoint()
+            if checkpoint_path:
+                self.logger.info(f"Auto-resume: Found checkpoint at {checkpoint_path}")
+
+        # Load checkpoint if found
+        if checkpoint_path and checkpoint_path.exists():
+            self.logger.info(f"Resuming from checkpoint: {checkpoint_path}")
+            checkpoint = torch.load(checkpoint_path, map_location=self.device)
+
+            # Load model state
+            model_state = checkpoint["model_state_dict"]
+            if self.distributed:
+                self.model.module.load_state_dict(model_state)
+            else:
+                self.model.load_state_dict(model_state)
+
+            # Load optimizer state
+            self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+
+            # Load scheduler state if available
+            if self.scheduler and checkpoint.get("scheduler_state_dict"):
+                self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+
+            # Load scaler state if available
+            if self.scaler and checkpoint.get("scaler_state_dict"):
+                self.scaler.load_state_dict(checkpoint["scaler_state_dict"])
+
+            # Load EMA model state if available
+            if self.ema_model and checkpoint.get("ema_state_dict"):
+                self.ema_model.load_state_dict(checkpoint["ema_state_dict"])
+
+            # Restore training state
+            self.start_epoch = checkpoint["epoch"] + 1
+            self.current_epoch = checkpoint["epoch"]
+            self.best_accuracy = checkpoint.get("best_accuracy", 0.0)
+
+            self.logger.info(f"Resumed from epoch {self.start_epoch}")
+            self.logger.info(f"Best accuracy so far: {self.best_accuracy:.2f}%")
+
     def train(self):
         """Main training loop."""
         epochs = self.config["epochs"]
 
-        for epoch in range(epochs):
+        for epoch in range(self.start_epoch, epochs):
             self.current_epoch = epoch
 
             # Update data loaders for progressive resizing
@@ -488,10 +611,10 @@ class Trainer:
 
             train_acc, train_loss = self.train_epoch()
 
-            # Validation
-            if self.rank == 0:
-                val_acc, val_loss = self.validate()
+            # Validation - all ranks participate but only rank 0 saves
+            val_acc, val_loss = self.validate()
 
+            if self.rank == 0:
                 # Log results
                 current_lr = self.optimizer.param_groups[0]["lr"]
                 self.logger.info(
