@@ -263,9 +263,22 @@ class Trainer:
 
         if scheduler_type == "onecycle":
             total_steps = epochs * len(self.train_loader)
+            max_lr = self.optimizer.param_groups[0]["lr"]
+            initial_lr = max_lr / 25
+
+            if self.rank == 0:
+                self.logger.info(f"🔍 DEBUG: OneCycleLR configuration:")
+                self.logger.info(f"  - max_lr: {max_lr}")
+                self.logger.info(f"  - initial_lr (max_lr/25): {initial_lr}")
+                self.logger.info(f"  - total_steps: {total_steps}")
+                self.logger.info(f"  - warmup_epochs: {warmup_epochs}")
+                self.logger.info(
+                    f"  - pct_start: {warmup_epochs / epochs if warmup_epochs > 0 else 0.25}"
+                )
+
             self.scheduler = OneCycleLR(
                 self.optimizer,
-                max_lr=self.optimizer.param_groups[0]["lr"],
+                max_lr=max_lr,
                 total_steps=total_steps,
                 pct_start=warmup_epochs / epochs if warmup_epochs > 0 else 0.25,
                 div_factor=25,
@@ -617,21 +630,51 @@ class Trainer:
         """Resume training from checkpoint if specified or auto-detect."""
         checkpoint_path = None
 
+        # DEBUG: Log resume configuration
+        if self.rank == 0:
+            self.logger.info(f"🔍 DEBUG: Resume configuration:")
+            self.logger.info(
+                f"  - auto_resume from config: {self.config.get('auto_resume', 'NOT SET')}"
+            )
+            self.logger.info(
+                f"  - resume path from config: {self.config.get('resume', 'NOT SET')}"
+            )
+            self.logger.info(f"  - checkpoint_dir: {self.checkpoint_dir}")
+
         # Check if explicit resume path is provided
         if self.config.get("resume"):
             checkpoint_path = Path(self.config["resume"])
             if not checkpoint_path.exists():
                 self.logger.error(f"Checkpoint not found: {checkpoint_path}")
                 raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
+            if self.rank == 0:
+                self.logger.info(f"🔍 DEBUG: Using explicit resume path")
 
         # Auto-resume: check for latest checkpoint if enabled
         elif self.config.get("auto_resume", True):
+            if self.rank == 0:
+                self.logger.info(
+                    f"🔍 DEBUG: Auto-resume is enabled, searching for checkpoints..."
+                )
             checkpoint_path = self._find_latest_checkpoint()
             if checkpoint_path:
-                self.logger.info(f"Auto-resume: Found checkpoint at {checkpoint_path}")
+                if self.rank == 0:
+                    self.logger.info(
+                        f"Auto-resume: Found checkpoint at {checkpoint_path}"
+                    )
+            else:
+                if self.rank == 0:
+                    self.logger.info(f"🔍 DEBUG: No checkpoint found, starting fresh")
+        else:
+            if self.rank == 0:
+                self.logger.info(
+                    f"✅ DEBUG: Auto-resume is DISABLED, starting fresh training"
+                )
 
         # Load checkpoint if found
         if checkpoint_path and checkpoint_path.exists():
+            if self.rank == 0:
+                self.logger.info(f"⚠️  DEBUG: LOADING CHECKPOINT: {checkpoint_path}")
             self.logger.info(f"Resuming from checkpoint: {checkpoint_path}")
             checkpoint = torch.load(checkpoint_path, map_location=self.device)
 

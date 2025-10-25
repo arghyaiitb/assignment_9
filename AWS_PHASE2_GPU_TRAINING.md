@@ -157,7 +157,7 @@ python main.py distributed \
   --checkpoint-interval 5 \
   --auto-resume \
   --target-accuracy 78 \
-  --num-workers 8
+  --num-workers 24
 ```
 
 ### Step 5: Monitor Training
@@ -221,6 +221,7 @@ echo "✅ Training complete! Model saved on EBS: $EBS_VOLUME_ID"
 --gradient-clip 1.0      # Prevent gradient explosion
 --cutmix-prob 0.0        # Disabled initially for training stability
 --mixup-alpha 0.0        # Disabled initially for training stability
+--num-workers 24         # 24 workers for fast data loading (p4d has 96 vCPUs)
 --progressive-resize     # 160→192→224 resolution
 --use-ema               # Smoother convergence
 --compile               # PyTorch 2.0 - huge boost on A100s

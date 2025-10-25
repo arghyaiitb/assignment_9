@@ -93,7 +93,7 @@ TRAINING_CMD="python main.py $TRAINING_MODE \\
     --checkpoint-interval 5 \\
     --auto-resume \\
     --target-accuracy 78 \\
-    --num-workers 8"
+    --num-workers 24"
 
 echo -e "${GREEN}Creating tmux session: $SESSION_NAME${NC}"
 echo "Training command: $TRAINING_MODE mode with batch_size=$BATCH_SIZE"

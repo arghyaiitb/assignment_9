@@ -234,7 +234,7 @@ TRAINING_CMD="python3 main.py $TRAINING_MODE \
     --auto-resume \
     --budget-hours $BUDGET_HOURS \
     --target-accuracy 78 \
-    --num-workers 8 \
+    --num-workers 24 \
     $RESUME_FLAG"
 
 # Ask for confirmation

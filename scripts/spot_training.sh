@@ -150,6 +150,13 @@ run_training() {
     fi
     
     # Build training command with auto-resume enabled
+    # NOTE: Set NO_AUTO_RESUME=true to start fresh (useful after hyperparameter changes)
+    AUTO_RESUME_FLAG="--auto-resume"
+    if [ "${NO_AUTO_RESUME}" = "true" ]; then
+        AUTO_RESUME_FLAG="--no-auto-resume"
+        echo -e "${YELLOW}⚠️  Auto-resume DISABLED - starting fresh training${NC}"
+    fi
+    
     TRAINING_CMD="python main.py $TRAINING_MODE \
         --use-ffcv \
         --ffcv-dir $FFCV_DIR \
@@ -171,9 +178,9 @@ run_training() {
         --checkpoint-dir $CHECKPOINT_DIR \
         --log-dir $LOG_DIR \
         --checkpoint-interval 5 \
-        --auto-resume \
+        $AUTO_RESUME_FLAG \
         --target-accuracy $TARGET_ACCURACY \
-        --num-workers 8"
+        --num-workers 24"
     
     echo -e "${BLUE}Starting training with command:${NC}"
     echo "$TRAINING_CMD"
