@@ -119,7 +119,7 @@ The script will guide you, but here are the key commands:
 
 ```bash
 # 1. Login to HuggingFace (required for ImageNet)
-huggingface-cli login
+hf auth login
 # Enter your token when prompted
 
 # 2. Start tmux for persistent session
