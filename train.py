@@ -308,6 +308,9 @@ class Trainer:
             )
         elif scheduler_type == "cosine":
             # For cosine scheduler, we'll implement warmup manually
+            # Start with low LR, warmup will ramp it up
+            initial_lr = self.optimizer.param_groups[0]["lr"]
+
             self.scheduler = CosineAnnealingLR(
                 self.optimizer,
                 T_max=(epochs - warmup_epochs) * len(self.train_loader),
@@ -315,16 +318,33 @@ class Trainer:
             )
             self.warmup_steps = warmup_epochs * len(self.train_loader)
             self.warmup_scheduler = None
+
             if warmup_epochs > 0:
-                # Create a linear warmup scheduler
+                # Set initial LR low for warmup
+                for param_group in self.optimizer.param_groups:
+                    param_group["lr"] = initial_lr / 25  # Start at 1/25 of max_lr
+
+                # Create a linear warmup scheduler that ramps from initial/25 to initial
                 def warmup_lambda(step):
                     if step < self.warmup_steps:
-                        return float(step) / float(max(1, self.warmup_steps))
-                    return 1.0
+                        return 1.0 + (
+                            24.0 * float(step) / float(max(1, self.warmup_steps))
+                        )
+                    return 25.0
 
                 self.warmup_scheduler = torch.optim.lr_scheduler.LambdaLR(
                     self.optimizer, lr_lambda=warmup_lambda
                 )
+
+                if self.rank == 0:
+                    self.logger.info(f"🔍 DEBUG: Cosine warmup configuration:")
+                    self.logger.info(f"  - Initial LR: {initial_lr / 25}")
+                    self.logger.info(f"  - Max LR (after warmup): {initial_lr}")
+                    self.logger.info(f"  - Warmup steps: {self.warmup_steps}")
+                    self.logger.info(
+                        f"  - Cosine decay starts at step: {self.warmup_steps}"
+                    )
+
             self.logger.info(
                 f"Using CosineAnnealingLR scheduler with {warmup_epochs} warmup epochs"
             )
@@ -433,7 +453,18 @@ class Trainer:
 
             # Update scheduler (must be after optimizer.step())
             if self.scheduler is not None:
-                self.scheduler.step()
+                # Handle warmup for cosine scheduler
+                if (
+                    hasattr(self, "warmup_scheduler")
+                    and self.warmup_scheduler is not None
+                ):
+                    if self.global_step < self.warmup_steps:
+                        self.warmup_scheduler.step()
+                    else:
+                        self.scheduler.step()
+                else:
+                    # OneCycleLR or no warmup
+                    self.scheduler.step()
                 self.global_step += 1
 
             # Update EMA
