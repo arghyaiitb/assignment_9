@@ -1,33 +1,70 @@
-# Core PyTorch ecosystem (latest versions - 2025)
-torch>=2.5.0
-torchvision>=0.20.0
+# ResNet-50 ImageNet Training Dependencies
+# Updated: October 2025 - Latest stable versions
 
-# Progress bars and visualization
-tqdm>=4.67.0
-matplotlib>=3.9.0
+# Core PyTorch ecosystem (v2.5.0+ for best performance)
+torch>=2.5.0  # Latest stable with CUDA 12.4+ support
+torchvision>=0.20.0  # Compatible with torch 2.5.0
+torchaudio>=2.5.0  # Audio extensions (required for full PyTorch install)
 
-# Model utilities
-torchinfo>=1.8.0  # Modern replacement for torchsummary
+# Fast data loading (CRITICAL for ImageNet training speed)
+ffcv>=1.0.0  # 3-5x faster data loading than standard PyTorch
+numba>=0.60.0  # JIT compilation support for FFCV
+# Optional: cupy-cuda12x>=13.3.0  # GPU arrays for FFCV (install separately if needed)
 
-# Image augmentation and processing (Latest Albumentations 2.0.8)
-albumentations==2.0.8  # Major version with breaking changes - FIXED for 2.0.8 API
-opencv-python>=4.10.0
-numpy>=1.26.0,<2.0.0  # Albumentations 2.0 requires numpy<2.0
-Pillow>=11.0.0
-pyyaml>=6.0  # Required by albumentations 2.0
+# Datasets and model hub
+datasets>=3.2.0  # HuggingFace datasets for ImageNet-1K download
+huggingface_hub>=0.26.0  # Hub client for authenticated downloads
+transformers>=4.46.0  # Optional: tokenizers and utilities
+pyarrow>=18.0.0  # Required for efficient dataset streaming
+safetensors>=0.4.5  # Fast and safe model serialization
 
-# API Changes in Albumentations 2.0.8 (Fixed in train.py):
-# - RandomResizedCrop: height/width -> size=(height, width)
-# - CoarseDropout: max_holes/min_holes -> num_holes_range
-# - CoarseDropout: max_height/min_height/max_width/min_width -> hole_height_range/hole_width_range
+# Image processing and augmentation
+opencv-python>=4.10.0.84  # Computer vision operations
+Pillow>=11.0.0  # PIL fork for image I/O
+albumentations>=1.4.0  # Fast image augmentations
+# Note: Using v1.4+ for stability. v2.0 has breaking API changes
 
-# Scientific computing and data processing
-scipy>=1.14.0
+# Numerical computing
+numpy>=1.26.4,<2.0.0  # Array operations (v2 has breaking changes)
+scipy>=1.14.1  # Scientific computing utilities
 
-# Hugging Face datasets for ImageNet-1K (ILSVRC/imagenet-1k)
-datasets>=2.14.0
-huggingface_hub>=0.20.0
-# Required for streaming and processing large datasets
-pyarrow>=14.0.0
+# Training utilities
+tqdm>=4.67.0  # Progress bars
+matplotlib>=3.9.2  # Plotting and visualization
+torchinfo>=1.8.0  # Model summary and debugging
+pyyaml>=6.0.2  # YAML config parsing
 
-# Optional: Visualization libraries
+# Distributed training
+mpi4py>=3.1.6  # Optional: MPI backend for distributed training
+
+# Experiment tracking (optional but recommended)
+wandb>=0.18.0  # Weights & Biases tracking
+tensorboard>=2.18.0  # TensorBoard logging
+tensorboardX>=2.6.2.2  # Enhanced TensorBoard features
+
+# Performance profiling (optional)
+py-spy>=0.3.14  # Python profiler
+nvidia-ml-py>=12.560.30  # NVIDIA GPU monitoring
+
+# Code quality (optional, for development)
+black>=24.10.0  # Code formatting
+ruff>=0.8.0  # Fast Python linter
+mypy>=1.13.0  # Static type checking
+
+# Installation Notes:
+# ------------------
+# 1. For CUDA 12.x:
+#    pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+# 
+# 2. For CUDA 11.8 (older GPUs):
+#    pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+#
+# 3. For CPU only:
+#    pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+#
+# 4. Install all requirements:
+#    pip install -r requirements.txt
+#
+# 5. For maximum performance, also install:
+#    pip install cupy-cuda12x  # GPU acceleration for FFCV
+#    pip install triton  # Kernel compilation for torch.compile
