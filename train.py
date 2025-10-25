@@ -205,6 +205,7 @@ class Trainer:
                 ffcv_dir=self.config.get("ffcv_dir", "/datasets/ffcv"),
                 distributed=self.distributed,
                 seed=self.config.get("seed", 42) + self.rank,
+                world_size=self.world_size,
             )
             self.use_ffcv = True
         else:

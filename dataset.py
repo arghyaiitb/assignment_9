@@ -262,6 +262,7 @@ def get_ffcv_loaders(
     ffcv_dir: str = "/datasets/ffcv",
     distributed: bool = False,
     seed: Optional[int] = None,
+    world_size: int = 1,
 ) -> Tuple[Loader, Loader]:
     """Create FFCV data loaders for fast training."""
 
@@ -298,7 +299,7 @@ def get_ffcv_loaders(
         NormalizeImage(
             mean=np.array(IMAGENET_MEAN) * 255,
             std=np.array(IMAGENET_STD) * 255,
-            type=np.float16,
+            type=np.float32,  # Use fp32 for validation to avoid NaN issues
         ),
     ]
 
@@ -328,10 +329,7 @@ def get_ffcv_loaders(
     # Only rank 0 will actually validate (handled in train.py), others will skip.
     val_loader = Loader(
         str(val_path),
-        batch_size=batch_size
-        * (
-            8 if distributed else 1
-        ),  # Increase batch size if distributed since only rank 0 validates
+        batch_size=batch_size * world_size if distributed else batch_size,
         num_workers=num_workers,
         order=OrderOption.SEQUENTIAL,
         drop_last=False,
