@@ -56,6 +56,7 @@ class Trainer:
         self.current_epoch = 0
         self.start_epoch = 0  # For resuming training
         self.global_step = 0  # Track global step for scheduler
+        self.first_batch = True  # Track if this is the very first training batch
 
         # Setup checkpoint and log directories from config or environment
         self.checkpoint_dir = Path(
@@ -422,9 +423,21 @@ class Trainer:
                 self.optimizer.step()
 
             # Update scheduler (must be after optimizer.step())
+            # IMPORTANT: Don't step scheduler before first optimizer.step() to avoid PyTorch warning
             if self.scheduler is not None:
-                self.scheduler.step()
-                self.global_step += 1
+                if not self.first_batch:
+                    self.scheduler.step()
+                    self.global_step += 1
+                else:
+                    # On first batch, optimizer.step() was just called, so now it's safe
+                    # to step scheduler on subsequent batches
+                    self.first_batch = False
+                    self.global_step += 1
+                    if self.rank == 0:
+                        actual_lr = self.optimizer.param_groups[0]["lr"]
+                        self.logger.info(
+                            f"🔍 DEBUG: LR after first batch (no scheduler step): {actual_lr}"
+                        )
 
             # Update EMA
             if self.ema_model is not None and batch_idx % 10 == 0:
@@ -712,6 +725,9 @@ class Trainer:
             self.start_epoch = checkpoint["epoch"] + 1
             self.current_epoch = checkpoint["epoch"]
             self.best_accuracy = checkpoint.get("best_accuracy", 0.0)
+
+            # Reset first_batch flag since we've already done training
+            self.first_batch = False
 
             self.logger.info(f"Resumed from epoch {self.start_epoch}")
             self.logger.info(f"Best accuracy so far: {self.best_accuracy:.2f}%")
