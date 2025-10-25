@@ -91,9 +91,18 @@ echo ""
 echo "Step 4: Setting up Python environment..."
 
 # Install Python 3.10 and pip for Ubuntu
-print_status "Installing Python 3.10 and pip..."
+print_status "Installing Python 3.10 and system dependencies..."
 sudo apt-get update
-sudo apt-get install -y python3.10 python3-pip python3.10-venv
+sudo apt-get install -y \
+    python3.10 \
+    python3-pip \
+    python3.10-venv \
+    libopencv-dev \
+    python3-opencv \
+    pkg-config \
+    libturbojpeg-dev \
+    libopenjp2-7-dev \
+    libjpeg-dev
 
 # Create virtual environment for better isolation
 if [ ! -d "$MOUNT_POINT/venv" ]; then
