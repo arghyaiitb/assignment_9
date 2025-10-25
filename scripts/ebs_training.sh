@@ -215,11 +215,18 @@ TRAINING_CMD="python3 main.py $TRAINING_MODE \
     --ffcv-dir $FFCV_DIR \
     --batch-size $BATCH_SIZE \
     --epochs $EPOCHS \
+    --lr 3.2 \
+    --warmup-epochs 5 \
     --progressive-resize \
     --use-ema \
     --compile \
+    --amp \
+    --checkpoint-dir $CHECKPOINT_DIR/$RUN_NAME \
+    --log-dir $LOG_DIR/$RUN_NAME \
     --checkpoint-interval 10 \
+    --auto-resume \
     --budget-hours $BUDGET_HOURS \
+    --target-accuracy 78 \
     $RESUME_FLAG"
 
 # Ask for confirmation

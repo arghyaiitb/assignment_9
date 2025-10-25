@@ -160,8 +160,9 @@ run_training() {
         --progressive-resize \
         --use-ema \
         --compile \
-        --mixed-precision \
+        --amp \
         --checkpoint-dir $CHECKPOINT_DIR \
+        --log-dir $LOG_DIR \
         --checkpoint-interval 5 \
         --auto-resume \
         --target-accuracy $TARGET_ACCURACY"

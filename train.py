@@ -20,7 +20,6 @@ from pathlib import Path
 from typing import Optional, Tuple, Dict, Any
 from tqdm import tqdm
 import logging
-from datetime import datetime
 
 # Import our modules
 from models import ResNet50
@@ -31,11 +30,13 @@ from dataset import (
     NUM_CLASSES,
 )
 
-# Training constants - can be overridden by environment variables
-CHECKPOINT_DIR = Path(os.environ.get("CHECKPOINT_DIR", "./checkpoints"))
-LOG_DIR = Path(os.environ.get("LOG_DIR", "./logs"))
-CHECKPOINT_DIR.mkdir(exist_ok=True, parents=True)
-LOG_DIR.mkdir(exist_ok=True, parents=True)
+# Training constants - can be overridden by environment variables or config
+# These will be set dynamically based on config in the Trainer class
+DEFAULT_CHECKPOINT_DIR = Path("./checkpoints")
+DEFAULT_LOG_DIR = Path("./logs")
+# Global variables for backwards compatibility
+CHECKPOINT_DIR = Path(os.environ.get("CHECKPOINT_DIR", str(DEFAULT_CHECKPOINT_DIR)))
+LOG_DIR = Path(os.environ.get("LOG_DIR", str(DEFAULT_LOG_DIR)))
 
 
 class Trainer:
@@ -54,6 +55,17 @@ class Trainer:
         self.best_accuracy = 0.0
         self.current_epoch = 0
         self.start_epoch = 0  # For resuming training
+
+        # Setup checkpoint and log directories from config or environment
+        self.checkpoint_dir = Path(
+            config.get("checkpoint_dir")
+            or os.environ.get("CHECKPOINT_DIR", str(DEFAULT_CHECKPOINT_DIR))
+        )
+        self.log_dir = Path(
+            config.get("log_dir") or os.environ.get("LOG_DIR", str(DEFAULT_LOG_DIR))
+        )
+        self.checkpoint_dir.mkdir(exist_ok=True, parents=True)
+        self.log_dir.mkdir(exist_ok=True, parents=True)
 
         # Distributed training state
         self.distributed = config.get("distributed", False)
@@ -100,16 +112,38 @@ class Trainer:
         """Setup logging configuration."""
         log_level = logging.INFO if self.rank == 0 else logging.WARNING
 
+        # Create a persistent log file name (append mode for spot instances)
+        # Use the node rank in filename for multi-node setups
+        log_filename = "train.log" if self.rank == 0 else f"train_rank{self.rank}.log"
+        log_path = self.log_dir / log_filename
+
+        # Also create an epoch-specific log for easy tracking
+        epoch_log_path = self.log_dir / "epoch_progress.log"
+
+        handlers = [
+            logging.FileHandler(log_path, mode="a"),  # Append mode for persistence
+            logging.StreamHandler(),
+        ]
+
+        # Add epoch progress logger for rank 0
+        if self.rank == 0:
+            self.epoch_logger = logging.getLogger("epoch_progress")
+            self.epoch_logger.setLevel(logging.INFO)
+            epoch_handler = logging.FileHandler(epoch_log_path, mode="a")
+            epoch_handler.setFormatter(
+                logging.Formatter(
+                    "[%(asctime)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+                )
+            )
+            self.epoch_logger.addHandler(epoch_handler)
+            self.epoch_logger.propagate = False
+
         logging.basicConfig(
             level=log_level,
             format="[%(asctime)s][%(levelname)s] %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
-            handlers=[
-                logging.FileHandler(
-                    LOG_DIR / f"train_{datetime.now():%Y%m%d_%H%M%S}.log"
-                ),
-                logging.StreamHandler(),
-            ],
+            handlers=handlers,
+            force=True,  # Override any existing configuration
         )
 
         self.logger = logging.getLogger(__name__)
@@ -208,7 +242,7 @@ class Trainer:
 
         # Log multi-GPU setup details
         if self.distributed and self.rank == 0:
-            self.logger.info(f"\n🚀 Distributed Training Configuration:")
+            self.logger.info("\n🚀 Distributed Training Configuration:")
             self.logger.info(f"   World Size: {self.world_size} GPUs")
             self.logger.info(f"   Backend: {self.config.get('dist_backend', 'nccl')}")
             self.logger.info(f"   Total Batch Size: {self.config['batch_size']}")
@@ -222,6 +256,7 @@ class Trainer:
         """Build learning rate scheduler."""
         epochs = self.config["epochs"]
         scheduler_type = self.config.get("scheduler", "onecycle")
+        warmup_epochs = self.config.get("warmup_epochs", 5)
 
         if scheduler_type == "onecycle":
             self.scheduler = OneCycleLR(
@@ -229,14 +264,37 @@ class Trainer:
                 max_lr=self.optimizer.param_groups[0]["lr"],
                 epochs=epochs,
                 steps_per_epoch=len(self.train_loader),
-                pct_start=0.25,
+                pct_start=warmup_epochs / epochs
+                if warmup_epochs > 0
+                else 0.25,  # Use warmup_epochs
                 div_factor=25,
                 final_div_factor=10000,
                 anneal_strategy="cos",
             )
+            self.logger.info(
+                f"Using OneCycleLR scheduler with {warmup_epochs} warmup epochs"
+            )
         elif scheduler_type == "cosine":
+            # For cosine scheduler, we'll implement warmup manually
             self.scheduler = CosineAnnealingLR(
-                self.optimizer, T_max=epochs * len(self.train_loader), eta_min=1e-6
+                self.optimizer,
+                T_max=(epochs - warmup_epochs) * len(self.train_loader),
+                eta_min=1e-6,
+            )
+            self.warmup_steps = warmup_epochs * len(self.train_loader)
+            self.warmup_scheduler = None
+            if warmup_epochs > 0:
+                # Create a linear warmup scheduler
+                def warmup_lambda(step):
+                    if step < self.warmup_steps:
+                        return float(step) / float(max(1, self.warmup_steps))
+                    return 1.0
+
+                self.warmup_scheduler = torch.optim.lr_scheduler.LambdaLR(
+                    self.optimizer, lr_lambda=warmup_lambda
+                )
+            self.logger.info(
+                f"Using CosineAnnealingLR scheduler with {warmup_epochs} warmup epochs"
             )
         else:
             self.scheduler = None
@@ -502,16 +560,18 @@ class Trainer:
             checkpoint["ema_state_dict"] = self.ema_model.state_dict()
 
         # Save regular checkpoint
-        checkpoint_path = CHECKPOINT_DIR / f"checkpoint_epoch_{self.current_epoch}.pt"
+        checkpoint_path = (
+            self.checkpoint_dir / f"checkpoint_epoch_{self.current_epoch}.pt"
+        )
         torch.save(checkpoint, checkpoint_path)
 
         # Also save as 'latest' for easy auto-resume
-        latest_path = CHECKPOINT_DIR / "checkpoint_latest.pt"
+        latest_path = self.checkpoint_dir / "checkpoint_latest.pt"
         torch.save(checkpoint, latest_path)
 
         # Save best checkpoint
         if is_best:
-            best_path = CHECKPOINT_DIR / "best_model.pt"
+            best_path = self.checkpoint_dir / "best_model.pt"
             torch.save(checkpoint, best_path)
             self.logger.info(
                 f"Saved best model with accuracy: {self.best_accuracy:.2f}%"
@@ -520,12 +580,12 @@ class Trainer:
     def _find_latest_checkpoint(self) -> Optional[Path]:
         """Find the latest checkpoint file for auto-resume."""
         # First check for explicit latest checkpoint
-        latest_path = CHECKPOINT_DIR / "checkpoint_latest.pt"
+        latest_path = self.checkpoint_dir / "checkpoint_latest.pt"
         if latest_path.exists():
             return latest_path
 
         # Otherwise find the highest epoch checkpoint
-        checkpoints = list(CHECKPOINT_DIR.glob("checkpoint_epoch_*.pt"))
+        checkpoints = list(self.checkpoint_dir.glob("checkpoint_epoch_*.pt"))
         if checkpoints:
             # Sort by epoch number
             checkpoints.sort(key=lambda x: int(x.stem.split("_")[-1]))
@@ -622,6 +682,16 @@ class Trainer:
                 )
                 self.logger.info(f"Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.2f}%")
                 self.logger.info(f"Learning Rate: {current_lr:.6f}")
+
+                # Also log to epoch progress file for easy monitoring
+                if hasattr(self, "epoch_logger"):
+                    self.epoch_logger.info(
+                        f"Epoch {epoch + 1}/{epochs} | "
+                        f"Train: {train_acc:.2f}% (loss: {train_loss:.4f}) | "
+                        f"Val: {val_acc:.2f}% (loss: {val_loss:.4f}) | "
+                        f"LR: {current_lr:.6f} | "
+                        f"Best: {self.best_accuracy:.2f}%"
+                    )
 
                 # Save checkpoint
                 is_best = val_acc > self.best_accuracy

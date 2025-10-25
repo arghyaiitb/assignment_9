@@ -137,15 +137,16 @@ The `tmux_training_setup.sh` script will set up multiple panes and start trainin
 python main.py distributed \
   --use-ffcv \
   --ffcv-dir /data/ffcv \
-  --batch-size 2048 \      # 256 per GPU × 8 GPUs
-  --epochs 60 \            # Converges faster with larger batch
-  --lr 3.2 \               # Linear scaling: 0.1 × 32
+  --batch-size 2048 \
+  --epochs 60 \
+  --lr 3.2 \
   --warmup-epochs 5 \
   --progressive-resize \
   --use-ema \
-  --compile \              # A100s benefit greatly from torch.compile
-  --mixed-precision \      # Uses Tensor Cores effectively
+  --compile \
+  --amp \
   --checkpoint-dir /data/checkpoints \
+  --log-dir /data/logs \
   --checkpoint-interval 5 \
   --auto-resume \
   --target-accuracy 78
@@ -210,7 +211,7 @@ echo "✅ Training complete! Model saved on EBS: $EBS_VOLUME_ID"
 --progressive-resize     # 160→192→224 resolution
 --use-ema               # Smoother convergence
 --compile               # PyTorch 2.0 - huge boost on A100s
---mixed-precision       # FP16 with A100 Tensor Cores
+--amp                   # Automatic Mixed Precision with A100 Tensor Cores
 ```
 
 ### Progressive Training Schedule

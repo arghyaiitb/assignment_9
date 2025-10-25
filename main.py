@@ -104,6 +104,12 @@ def parse_arguments():
         default="onecycle",
         help="Learning rate scheduler",
     )
+    parser.add_argument(
+        "--warmup-epochs",
+        type=int,
+        default=5,
+        help="Number of warmup epochs for learning rate scheduler",
+    )
 
     # Augmentation arguments
     parser.add_argument(
@@ -121,6 +127,12 @@ def parse_arguments():
     # Optimization arguments
     parser.add_argument(
         "--amp", action="store_true", default=True, help="Use automatic mixed precision"
+    )
+    parser.add_argument(
+        "--mixed-precision",
+        action="store_true",
+        dest="amp",
+        help="Alias for --amp (automatic mixed precision)",
     )
     parser.add_argument(
         "--compile",
@@ -172,6 +184,18 @@ def parse_arguments():
         type=int,
         default=5,
         help="Save checkpoint every N epochs",
+    )
+    parser.add_argument(
+        "--checkpoint-dir",
+        type=str,
+        default="/data/checkpoints",
+        help="Directory to save checkpoints (default: /data/checkpoints)",
+    )
+    parser.add_argument(
+        "--log-dir",
+        type=str,
+        default="/data/logs",
+        help="Directory to save training logs (default: /data/logs)",
     )
     parser.add_argument(
         "--validate-only", type=str, help="Path to checkpoint for validation only"
@@ -244,6 +268,7 @@ def prepare_config(args) -> Dict[str, Any]:
         "weight_decay": args.weight_decay,
         "label_smoothing": args.label_smoothing,
         "scheduler": args.scheduler,
+        "warmup_epochs": args.warmup_epochs,
         # Augmentation
         "cutmix_prob": args.cutmix_prob,
         "mixup_alpha": args.mixup_alpha,
@@ -260,6 +285,8 @@ def prepare_config(args) -> Dict[str, Any]:
         "resume": args.resume,
         "auto_resume": args.auto_resume,
         "checkpoint_interval": args.checkpoint_interval,
+        "checkpoint_dir": args.checkpoint_dir,
+        "log_dir": args.log_dir,
         # Other
         "seed": args.seed,
         "target_accuracy": args.target_accuracy,
