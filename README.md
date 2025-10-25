@@ -2,6 +2,8 @@
 
 Train ResNet-50 on ImageNet-1K to achieve **78% top-1 accuracy** in just **45 minutes** using AWS p4d.24xlarge with 8× A100 GPUs!
 
+> 📚 **Documentation Index**: See [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md) for all guides and troubleshooting docs.
+
 ## 🎯 Quick Start - Just Follow 2 Guides
 
 1. **[AWS_PHASE1_CPU_SETUP.md](AWS_PHASE1_CPU_SETUP.md)** - Prepare data on c5a.4xlarge CPU instance (1 hour, $0.62)
@@ -12,6 +14,8 @@ Train ResNet-50 on ImageNet-1K to achieve **78% top-1 accuracy** in just **45 mi
 **Alternative: p3.8xlarge (4× V100) - 90 minutes, $5.25 total**
 
 > **💡 Local Development**: This README also covers local setup, testing, and development. For AWS training, just follow the two guides above.
+
+> **⚠️ Troubleshooting**: If you encounter training issues (NaN losses, validation stuck at 0.1%, etc.), see [TRAINING_ISSUES_RESOLVED.md](TRAINING_ISSUES_RESOLVED.md) for solutions.
 
 ## ⚡ Quick Command Reference
 
