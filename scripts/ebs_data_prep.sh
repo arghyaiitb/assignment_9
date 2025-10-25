@@ -86,30 +86,46 @@ if [ "$AVAILABLE_SPACE" -lt 200 ]; then
 fi
 print_status "Available space: ${AVAILABLE_SPACE}GB"
 
-# Step 4: Install Python dependencies
+# Step 4: Setup Python environment
 echo ""
-echo "Step 4: Installing Python dependencies..."
+echo "Step 4: Setting up Python environment..."
 
-# Check if pip is installed
-if ! command -v pip3 &> /dev/null; then
-    print_warning "pip3 not found. Installing..."
-    sudo apt-get update && sudo apt-get install -y python3-pip || \
-    sudo yum install -y python3-pip
+# Install Python 3.10 and pip for Ubuntu
+print_status "Installing Python 3.10 and pip..."
+sudo apt-get update
+sudo apt-get install -y python3.10 python3-pip python3.10-venv
+
+# Create virtual environment for better isolation
+if [ ! -d "$MOUNT_POINT/venv" ]; then
+    print_status "Creating Python virtual environment..."
+    python3.10 -m venv $MOUNT_POINT/venv
 fi
 
-# Install CPU-only PyTorch (faster for data prep)
-print_status "Installing PyTorch (CPU version for data prep)..."
-pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+# Activate virtual environment
+source $MOUNT_POINT/venv/bin/activate
+print_status "Python environment activated"
 
-# Install other requirements
+# Upgrade pip
+pip install --upgrade pip
+
+# Install PyTorch CPU version (faster for data processing)
+print_status "Installing PyTorch (CPU version)..."
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+
+# Verify installation
+python -c "import torch; print(f'PyTorch {torch.__version__} (CPU) ready')" && \
+    print_status "PyTorch CPU version installed successfully" || \
+    print_error "Failed to install PyTorch"
+
+# Install additional requirements (not included in AMI)
 print_status "Installing data processing libraries..."
-pip3 install \
+pip install \
     datasets \
     huggingface_hub \
     ffcv \
-    numpy \
     tqdm \
-    Pillow
+    albumentations \
+    opencv-python
 
 # Step 5: Setup directories
 echo ""
@@ -171,23 +187,49 @@ else
     echo ""
     echo "Step 9: Ready to convert data!"
     echo ""
+    
+    # Detect CPU cores for optimization
+    NUM_CORES=$(nproc)
+    print_status "Detected $NUM_CORES CPU cores for parallel processing"
+    
+    # Set optimization flags
+    export HF_HUB_ENABLE_HF_TRANSFER=1
+    export NUMBA_NUM_THREADS=$NUM_CORES
+    export HF_DATASETS_DOWNLOAD_WORKERS=8
+    
     echo "=================================================="
     echo "Next Steps:"
     echo "=================================================="
     echo ""
-    echo "1. Convert FULL ImageNet to FFCV (~3-5 hours):"
+    
+    # Estimate time based on instance type
+    if [ "$NUM_CORES" -ge 8 ]; then
+        TIME_ESTIMATE="1-2 hours (optimized instance)"
+    elif [ "$NUM_CORES" -ge 4 ]; then
+        TIME_ESTIMATE="2-3 hours (fast instance)"
+    else
+        TIME_ESTIMATE="3-5 hours (standard instance)"
+    fi
+    
+    echo "1. Convert FULL ImageNet to FFCV (~$TIME_ESTIMATE):"
     echo "   python3 main.py convert-ffcv --ffcv-dir $FFCV_DIR"
+    echo "   # Using $NUM_CORES workers for optimized conversion"
     echo ""
-    echo "2. Or create a PARTIAL dataset for testing (~10 minutes):"
+    echo "2. Or create a PARTIAL dataset for testing (~5 minutes):"
     echo "   python3 main.py convert-ffcv --partial-dataset --ffcv-dir ${FFCV_DIR}_partial"
     echo ""
-    echo "3. Monitor progress:"
-    echo "   watch -n 5 'df -h $MOUNT_POINT; ls -lah $FFCV_DIR/'"
+    echo "3. Monitor progress in tmux (recommended):"
+    echo "   tmux new -s convert"
+    echo "   # Pane 1: Run conversion"
+    echo "   # Pane 2 (Ctrl-B %): watch -n 5 'df -h $MOUNT_POINT; ls -lah $FFCV_DIR/'"
+    echo "   # Pane 3 (Ctrl-B %): htop"
     echo ""
     echo "4. When complete, create marker file:"
     echo "   echo 'Data ready: $(date)' > $MOUNT_POINT/DATA_READY.txt"
     echo ""
     echo "5. Then detach EBS and terminate this instance to save money!"
+    echo ""
+    echo "💡 TIP: Using c5.2xlarge? You'll save 3+ hours on conversion!"
     echo ""
 fi
 

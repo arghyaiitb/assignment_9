@@ -141,6 +141,7 @@ def convert_to_ffcv(
     jpeg_quality: int = 90,
     max_samples_per_split: Optional[int] = None,
     max_classes: Optional[int] = None,
+    num_workers: Optional[int] = None,
 ):
     """Convert HuggingFace ImageNet to FFCV format for fast loading.
 
@@ -150,6 +151,7 @@ def convert_to_ffcv(
         jpeg_quality: JPEG compression quality
         max_samples_per_split: Maximum samples per split (for partial dataset)
         max_classes: Maximum number of classes to include (for partial dataset)
+        num_workers: Number of workers for parallel processing (default: auto-detect)
     """
 
     if not FFCV_AVAILABLE:
@@ -203,6 +205,15 @@ def convert_to_ffcv(
 
         print(f"Final dataset size: {len(dataset)} samples")
 
+        # Determine number of workers
+        if num_workers is None:
+            import multiprocessing
+
+            actual_workers = min(multiprocessing.cpu_count(), 16)
+        else:
+            actual_workers = num_workers
+        print(f"Using {actual_workers} workers for FFCV conversion")
+
         # Create FFCV writer
         writer = DatasetWriter(
             str(output_path),
@@ -214,7 +225,7 @@ def convert_to_ffcv(
                 ),
                 "label": IntField(),
             },
-            num_workers=16,
+            num_workers=actual_workers,
         )
 
         # Convert dataset

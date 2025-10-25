@@ -177,8 +177,8 @@ class Trainer:
         else:
             self.logger.info("Using standard PyTorch data loaders...")
             self.train_loader, self.val_loader = get_pytorch_loaders(
-                batch_size=batch_size,
-                num_workers=num_workers,
+    batch_size=batch_size,
+    num_workers=num_workers,
                 cache_dir=self.config.get("cache_dir"),
                 test_mode=self.config.get("test_mode", False),
                 max_samples=self.config.get("max_samples"),
@@ -364,7 +364,7 @@ class Trainer:
         model.eval()
 
         total_loss = 0.0
-        correct = 0
+    correct = 0
         total = 0
 
         with torch.no_grad():
@@ -401,23 +401,23 @@ class Trainer:
         # Generate random box
         H, W = images.size(2), images.size(3)
         cut_rat = np.sqrt(1.0 - lam)
-        cut_w = int(W * cut_rat)
-        cut_h = int(H * cut_rat)
-
-        cx = np.random.randint(W)
-        cy = np.random.randint(H)
-
-        x1 = np.clip(cx - cut_w // 2, 0, W)
-        y1 = np.clip(cy - cut_h // 2, 0, H)
-        x2 = np.clip(cx + cut_w // 2, 0, W)
-        y2 = np.clip(cy + cut_h // 2, 0, H)
-
+            cut_w = int(W * cut_rat)
+            cut_h = int(H * cut_rat)
+            
+            cx = np.random.randint(W)
+            cy = np.random.randint(H)
+            
+            x1 = np.clip(cx - cut_w // 2, 0, W)
+            y1 = np.clip(cy - cut_h // 2, 0, H)
+            x2 = np.clip(cx + cut_w // 2, 0, W)
+            y2 = np.clip(cy + cut_h // 2, 0, H)
+            
         # Apply CutMix
         images[:, :, y1:y2, x1:x2] = images[index, :, y1:y2, x1:x2]
-
+            
         # Adjust lambda
-        lam = 1 - ((x2 - x1) * (y2 - y1) / (W * H))
-
+            lam = 1 - ((x2 - x1) * (y2 - y1) / (W * H))
+            
         return images, (labels, labels[index], lam)
 
     def _mixup(self, images, labels):
@@ -437,7 +437,7 @@ class Trainer:
 
     def save_checkpoint(self, is_best=False):
         """Save training checkpoint."""
-        checkpoint = {
+    checkpoint = {
             "epoch": self.current_epoch,
             "model_state_dict": (
                 self.model.module if self.distributed else self.model
@@ -452,10 +452,10 @@ class Trainer:
 
         # Save regular checkpoint
         checkpoint_path = CHECKPOINT_DIR / f"checkpoint_epoch_{self.current_epoch}.pt"
-        torch.save(checkpoint, checkpoint_path)
-
+    torch.save(checkpoint, checkpoint_path)
+    
         # Save best checkpoint
-        if is_best:
+    if is_best:
             best_path = CHECKPOINT_DIR / "best_model.pt"
             torch.save(checkpoint, best_path)
             self.logger.info(

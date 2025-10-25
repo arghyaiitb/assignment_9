@@ -122,23 +122,31 @@ fi
 
 cd $PROJECT_DIR
 
-# Step 5: Install dependencies
+# Step 5: Setup Python environment and dependencies
 echo ""
-echo "Step 5: Checking Python dependencies..."
+echo "Step 5: Setting up Python environment..."
 
-# Install PyTorch with CUDA support
-if ! python3 -c "import torch; assert torch.cuda.is_available()" 2>/dev/null; then
-    print_warning "Installing PyTorch with CUDA support..."
+# For NVIDIA Deep Learning AMI with PyTorch 2.8
+if [ -f "/opt/conda/etc/profile.d/conda.sh" ]; then
+    print_status "NVIDIA Deep Learning AMI detected. Activating PyTorch environment..."
+    source /opt/conda/etc/profile.d/conda.sh
+    conda activate pytorch
+    
+    # Verify PyTorch and CUDA
+    python -c "import torch; print(f'PyTorch {torch.__version__} with CUDA {torch.cuda.is_available()}')" && \
+        print_status "PyTorch 2.8 with CUDA ready" || \
+        print_error "PyTorch/CUDA verification failed"
+else
+    # Fallback for standard AMI
+    print_warning "Standard AMI detected. Installing PyTorch with CUDA..."
     pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 fi
 
-# Install other requirements
-if [ -f "requirements.txt" ]; then
-    print_info "Installing project requirements..."
-    pip3 install -r requirements.txt
-fi
+# Install additional requirements not in AMI
+print_info "Installing additional project requirements..."
+pip install ffcv datasets huggingface_hub albumentations opencv-python wandb
 
-print_status "Dependencies installed"
+print_status "Dependencies ready"
 
 # Step 6: Check for existing checkpoints
 echo ""

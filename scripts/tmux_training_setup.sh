@@ -21,6 +21,14 @@ echo "tmux Training Environment Setup"
 echo "=================================================="
 echo -e "${NC}"
 
+# Check if using NVIDIA Deep Learning AMI
+if [ -f "/opt/conda/etc/profile.d/conda.sh" ]; then
+    echo -e "${GREEN}NVIDIA Deep Learning AMI detected${NC}"
+    source /opt/conda/etc/profile.d/conda.sh
+    conda activate pytorch
+    echo -e "${GREEN}PyTorch 2.8 environment activated${NC}"
+fi
+
 # Check if tmux is installed
 if ! command -v tmux &> /dev/null; then
     echo -e "${YELLOW}tmux not found. Installing...${NC}"
@@ -93,6 +101,10 @@ tmux split-window -v -t $SESSION_NAME:training.1 -c $PROJECT_DIR  # Creates pane
 
 # Setup each pane
 # Pane 0 (top-left): Main training
+# Activate conda environment if using NVIDIA AMI
+if [ -f "/opt/conda/etc/profile.d/conda.sh" ]; then
+    tmux send-keys -t $SESSION_NAME:training.0 "source /opt/conda/etc/profile.d/conda.sh && conda activate pytorch" C-m
+fi
 tmux send-keys -t $SESSION_NAME:training.0 "# Training Command (Press Enter to start)" C-m
 tmux send-keys -t $SESSION_NAME:training.0 "echo 'Starting training in 5 seconds...'" C-m
 tmux send-keys -t $SESSION_NAME:training.0 "sleep 5" C-m

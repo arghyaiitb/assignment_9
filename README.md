@@ -1,8 +1,15 @@
-# ResNet-50 ImageNet Training
+# ResNet-50 ImageNet Training - Under $6 on AWS
 
-Train ResNet-50 on ImageNet-1K to achieve **78% top-1 accuracy** within **$15 budget** using optimized techniques and multi-GPU support.
+Train ResNet-50 on ImageNet-1K to achieve **78% top-1 accuracy** for **under $6 total cost** using AWS spot instances and optimized data preparation.
 
-> **🆕 Quick Testing Feature**: Test the entire training pipeline in ~5 minutes with partial dataset support! Use `--partial-dataset` to train on just 1% of ImageNet for rapid iteration and debugging. See [Quick Testing](#quick-testing-with-partial-dataset-new) below.
+## 🎯 Quick Start - Just Follow 2 Guides
+
+1. **[AWS_PHASE1_CPU_SETUP.md](AWS_PHASE1_CPU_SETUP.md)** - Prepare data on c5a.4xlarge CPU instance (1 hour, $0.62)
+2. **[AWS_PHASE2_GPU_TRAINING.md](AWS_PHASE2_GPU_TRAINING.md)** - Train on p3.8xlarge GPU spot instance (1.5 hours, $5.25)
+
+**Total: 2.5 hours, $5.87 - Achieve 78% accuracy!** ✅
+
+> **💡 Local Development**: This README also covers local setup, testing, and development. For AWS training, just follow the two guides above.
 
 ## ⚡ Quick Command Reference
 
@@ -43,10 +50,18 @@ tmux kill-session -t train
 - **Storage**: 200GB+ for dataset and FFCV files (SSD recommended)
 - **Multi-GPU**: 4-8 GPUs for fastest training (optional)
 
-### Software
+### Software (Auto or Manual)
+
+#### Option 1: NVIDIA Deep Learning AMI (Recommended for AWS)
+- **AMI**: NVIDIA Deep Learning AMI with PyTorch 2.8
+- **PyTorch**: 2.8 pre-installed with CUDA 12.x
+- **Environment**: Conda with all dependencies configured
+- **Setup Time**: Zero - start training immediately!
+
+#### Option 2: Manual Installation
 - **Python**: 3.9+ (3.10 or 3.11 recommended)
 - **CUDA**: 11.8+ (12.4 recommended for latest GPUs)
-- **PyTorch**: 2.5.0+ (automatically installed)
+- **PyTorch**: 2.5.0+ (will be installed via requirements.txt)
 - **Operating System**: Linux (Ubuntu 20.04/22.04) or WSL2
 
 ## 📁 Project Structure
@@ -58,7 +73,11 @@ tmux kill-session -t train
 ├── train.py        # Training logic (single & multi-GPU support)
 ├── main.py         # Main entry point connecting everything
 ├── requirements.txt # Dependencies
-└── README.md       # This file
+├── README.md       # This file
+└── scripts/        # Automation scripts for AWS
+    ├── ebs_data_prep.sh      # Automated EBS data preparation
+    ├── ebs_training.sh       # Automated GPU training setup
+    └── tmux_training_setup.sh # Advanced tmux environment
 ```
 
 ## 🚀 Quick Start
@@ -296,7 +315,54 @@ python main.py distributed \
 
 ## 💰 Cost-Optimized Training on AWS
 
-> **📖 NEW: EBS Strategy Guide** - Save money by preparing data on cheap instances! See [AWS_EBS_GUIDE.md](AWS_EBS_GUIDE.md) for complete instructions on using EBS volumes to separate data preparation ($0.50) from training ($15).
+### 📖 Two-Phase Strategy: CPU Setup → GPU Training
+**Save 76% on costs by separating data prep from training!**
+
+| Phase | Instance | Purpose | Time | Cost |
+|-------|----------|---------|------|------|
+| **Phase 1 (Don't do this)** | t3.large (CPU) | Download data, convert to FFCV | 5 hrs | $0.40 |
+| **Phase 1 (RECOMMENDED)** | c5a.4xlarge (CPU) | Same but 5x faster with 16 vCPUs! | 1 hr | $0.62 |
+| **Phase 2 (Spot)** | p3.8xlarge (GPU) | Just attach EBS and train! | 1.5 hrs | $5.25 |
+| | | **Total (Fast Path)** | **2.5 hrs** | **$5.87** |
+
+> **📚 Complete Training Guides (Only 3 You Need)**:
+> 
+> 1. **[AWS_PHASE1_CPU_SETUP.md](AWS_PHASE1_CPU_SETUP.md)** - Phase 1: Data preparation on CPU (1 hour, $0.62)
+> 2. **[AWS_PHASE2_GPU_TRAINING.md](AWS_PHASE2_GPU_TRAINING.md)** - Phase 2: Model training on GPU (1.5 hours, $5.25)  
+> 3. **[README.md](README.md)** - This file: Overall project overview and local development
+
+> **🔧 Automated Scripts** - Used by the guides:
+> - `scripts/ebs_data_prep.sh` - Auto-configures CPU instance, installs dependencies, mounts EBS
+> - `scripts/ebs_training.sh` - Auto-configures GPU instance, verifies CUDA, prepares for training
+> - `scripts/tmux_training_setup.sh` - Creates multi-pane monitoring dashboard for training
+> All scripts support **NVIDIA Deep Learning AMI (PyTorch 2.8)** automatically!
+
+### How the Scripts Work
+
+#### Phase 1: Data Preparation Script
+```bash
+# After attaching EBS to cheap instance
+wget https://raw.githubusercontent.com/yourusername/repo/main/scripts/ebs_data_prep.sh
+chmod +x ebs_data_prep.sh
+./ebs_data_prep.sh
+# Automatically detects NVIDIA AMI and sets up environment
+```
+
+#### Training (GPU instance - $15)
+```bash
+# After attaching prepared EBS to GPU instance
+wget https://raw.githubusercontent.com/yourusername/repo/main/scripts/ebs_training.sh
+chmod +x ebs_training.sh
+./ebs_training.sh
+# Handles conda environment, mounts EBS, starts training
+```
+
+#### Advanced tmux Setup
+```bash
+# For multi-pane monitoring environment
+./scripts/tmux_training_setup.sh 2048 100  # batch_size epochs
+# Creates 4 windows with training, GPU monitoring, logs, and dashboard
+```
 
 ### Using p4d.24xlarge (8x A100 80GB)
 
