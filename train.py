@@ -464,7 +464,13 @@ class Trainer:
                         self.scheduler.step()
                 else:
                     # OneCycleLR or no warmup
-                    self.scheduler.step()
+                    # Check if we've reached total_steps to avoid OneCycleLR crash
+                    if hasattr(self.scheduler, "total_steps"):
+                        if self.global_step < self.scheduler.total_steps:
+                            self.scheduler.step()
+                        # else: skip stepping (at max steps)
+                    else:
+                        self.scheduler.step()
                 self.global_step += 1
 
             # Update EMA
