@@ -12,7 +12,7 @@ import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim.lr_scheduler import OneCycleLR, CosineAnnealingLR
 from torch.optim.swa_utils import AveragedModel
-from torch.cuda.amp import GradScaler, autocast
+from torch.amp import GradScaler, autocast
 from torch.distributions.beta import Beta
 
 import numpy as np
@@ -86,7 +86,7 @@ class Trainer:
 
         # Mixed precision
         if config.get("amp", True):
-            self.scaler = GradScaler()
+            self.scaler = GradScaler('cuda')
 
         # EMA model
         if config.get("use_ema", False) and self.rank == 0:
@@ -349,7 +349,7 @@ class Trainer:
 
             # Forward pass with mixed precision
             if self.scaler is not None:
-                with autocast():
+                with autocast('cuda'):
                     outputs = self.model(images)
                     if isinstance(labels, tuple):  # Mixed labels from cutmix/mixup
                         loss = labels[2] * F.cross_entropy(outputs, labels[0]) + (
@@ -399,7 +399,7 @@ class Trainer:
 
                 self.optimizer.step()
 
-            # Update scheduler
+            # Update scheduler (must be after optimizer.step())
             if self.scheduler is not None:
                 self.scheduler.step()
 
