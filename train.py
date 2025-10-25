@@ -308,29 +308,27 @@ class Trainer:
             )
         elif scheduler_type == "cosine":
             # For cosine scheduler, we'll implement warmup manually
-            # Start with low LR, warmup will ramp it up
             initial_lr = self.optimizer.param_groups[0]["lr"]
-
-            self.scheduler = CosineAnnealingLR(
-                self.optimizer,
-                T_max=(epochs - warmup_epochs) * len(self.train_loader),
-                eta_min=1e-6,
-            )
             self.warmup_steps = warmup_epochs * len(self.train_loader)
-            self.warmup_scheduler = None
 
             if warmup_epochs > 0:
-                # Set initial LR low for warmup
-                for param_group in self.optimizer.param_groups:
-                    param_group["lr"] = initial_lr / 25  # Start at 1/25 of max_lr
+                # CRITICAL: Set optimizer LR to warmup initial value BEFORE creating LambdaLR
+                # This ensures LambdaLR captures the correct base_lrs
+                warmup_initial_lr = initial_lr / 25  # Start at 1/25 of max_lr
 
-                # Create a linear warmup scheduler that ramps from initial/25 to initial
+                # Set the optimizer LR to the warmup initial value
+                for param_group in self.optimizer.param_groups:
+                    param_group["lr"] = warmup_initial_lr
+
+                # Now create the warmup scheduler - it will capture base_lrs = [warmup_initial_lr]
+                # LambdaLR will multiply the base LR by the lambda value
+                # We want to go from warmup_initial_lr to initial_lr
+                # So lambda should go from 1.0 to 25.0
                 def warmup_lambda(step):
-                    if step < self.warmup_steps:
-                        return 1.0 + (
-                            24.0 * float(step) / float(max(1, self.warmup_steps))
-                        )
-                    return 25.0
+                    # Ramp from 1.0 to 25.0 over warmup_steps
+                    # At step 0: return 1.0 (LR = warmup_initial_lr * 1.0 = initial_lr/25)
+                    # At step warmup_steps: return 25.0 (LR = warmup_initial_lr * 25.0 = initial_lr)
+                    return 1.0 + (24.0 * float(step) / float(max(1, self.warmup_steps)))
 
                 self.warmup_scheduler = torch.optim.lr_scheduler.LambdaLR(
                     self.optimizer, lr_lambda=warmup_lambda
@@ -338,12 +336,27 @@ class Trainer:
 
                 if self.rank == 0:
                     self.logger.info(f"🔍 DEBUG: Cosine warmup configuration:")
-                    self.logger.info(f"  - Initial LR: {initial_lr / 25}")
-                    self.logger.info(f"  - Max LR (after warmup): {initial_lr}")
-                    self.logger.info(f"  - Warmup steps: {self.warmup_steps}")
                     self.logger.info(
-                        f"  - Cosine decay starts at step: {self.warmup_steps}"
+                        f"  - Initial LR (start of warmup): {warmup_initial_lr}"
                     )
+                    self.logger.info(f"  - Max LR (end of warmup): {initial_lr}")
+                    self.logger.info(f"  - Warmup steps: {self.warmup_steps}")
+
+                # Create cosine scheduler that will start from initial_lr after warmup
+                # The T_max should be the remaining steps after warmup
+                self.scheduler = CosineAnnealingLR(
+                    self.optimizer,
+                    T_max=(epochs - warmup_epochs) * len(self.train_loader),
+                    eta_min=1e-6,
+                )
+            else:
+                # No warmup, just use cosine annealing from the start
+                self.warmup_scheduler = None
+                self.scheduler = CosineAnnealingLR(
+                    self.optimizer,
+                    T_max=epochs * len(self.train_loader),
+                    eta_min=1e-6,
+                )
 
             self.logger.info(
                 f"Using CosineAnnealingLR scheduler with {warmup_epochs} warmup epochs"
@@ -459,8 +472,20 @@ class Trainer:
                     and self.warmup_scheduler is not None
                 ):
                     if self.global_step < self.warmup_steps:
+                        # During warmup phase
                         self.warmup_scheduler.step()
+                    elif self.global_step == self.warmup_steps:
+                        # Transition from warmup to cosine
+                        # Reset the cosine scheduler's base_lrs to match current LR
+                        current_lr = self.optimizer.param_groups[0]["lr"]
+                        self.scheduler.base_lrs = [current_lr]
+                        self.scheduler.step()
+                        if self.rank == 0:
+                            self.logger.info(
+                                f"🔄 Warmup complete! Transitioning to cosine annealing from LR: {current_lr:.6f}"
+                            )
                     else:
+                        # After warmup, use cosine annealing
                         self.scheduler.step()
                 else:
                     # OneCycleLR or no warmup
