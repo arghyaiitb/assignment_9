@@ -327,10 +327,13 @@ class Trainer:
 
         for batch_idx, batch in enumerate(pbar):
             # Handle both FFCV and standard dataloaders
-            if self.use_ffcv:
+            # Check batch type instead of just relying on flag
+            if isinstance(batch, dict):
+                # FFCV loader returns dict
                 images = batch["image"]
                 labels = batch["label"].long()
             else:
+                # Standard PyTorch loader returns tuple
                 images, labels = batch
                 images = images.to(self.device, non_blocking=True)
                 labels = labels.to(self.device, non_blocking=True)
@@ -457,10 +460,13 @@ class Trainer:
 
         with torch.no_grad():
             for batch in tqdm(self.val_loader, disable=self.rank != 0):
-                if self.use_ffcv:
+                # Check batch type instead of just relying on flag
+                if isinstance(batch, dict):
+                    # FFCV loader returns dict
                     images = batch["image"]
                     labels = batch["label"].long()
                 else:
+                    # Standard PyTorch loader returns tuple
                     images, labels = batch
                     images = images.to(self.device, non_blocking=True)
                     labels = labels.to(self.device, non_blocking=True)
