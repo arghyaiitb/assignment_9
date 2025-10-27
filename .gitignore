@@ -503,8 +503,11 @@ replay_pid*
 *.bmp
 *.tiff
 *.svg
+*.webp
+*.ico
 !docs/images/
 !README_images/
+!screenshot/
 
 # Video files
 *.mp4

@@ -582,6 +582,124 @@ With all optimizations on appropriate hardware:
 - **Cost**: $12-15 with spot instances
 - **Key**: FFCV + Progressive Resizing + EMA + Multi-GPU
 
+## 🏆 Assignment Submission - ResNet-50 ImageNet Training
+
+### Training Results ✅
+- **Final Top-1 Accuracy**: 75.13% (achieved at epoch 78)
+- **Training Duration**: 80 epochs completed
+- **Hardware**: 8× A100 GPUs on AWS p4d.24xlarge
+  - **Screenshot**: [View EC2 Training Screenshot](./screenshot/Screenshot%202025-10-27%20at%202.02.33%E2%80%AFPM.png)
+- **Training Time**: ~3 hours total
+- **Dataset**: ImageNet-1K (from scratch, no pre-training)
+- **Framework**: PyTorch 2.5 with FFCV, progressive resizing, EMA, torch.compile
+
+### HuggingFace Spaces Demo 🚀
+**Live Demo**: [https://huggingface.co/spaces/arghyaiitb/resnet50-imagenet-1k](https://huggingface.co/spaces/arghyaiitb/resnet50-imagenet-1k)
+
+The demo allows you to upload images and see ResNet-50 predictions trained from scratch on ImageNet.
+
+### Training Configuration
+- **Model**: ResNet-50 (25.6M parameters)
+- **Batch Size**: 2048 total (256 per GPU)
+- **Learning Rate**: 0.8 (OneCycleLR scheduler)
+- **Epochs**: 80
+- **Image Sizes**: Progressive (160→192→224)
+- **Augmentations**: CutMix (0.5), MixUp (0.4), AutoAugment
+- **Optimizations**: torch.compile, EMA, AMP, Label Smoothing (0.1)
+
+### Epoch-by-Epoch Training Logs 📊
+
+```
+================================================================================
+ResNet-50 ImageNet Training
+================================================================================
+Configuration: 8 GPUs, Batch Size 2048, 80 Epochs, Progressive Resize, EMA, Compile
+================================================================================
+
+Epoch 1/80  | Train: 1.23% (loss: 6.6493) | Val: 4.10% (loss: 5.8118) | LR: 0.105610 | Best: 0.00%
+Epoch 2/80  | Train: 8.23% (loss: 5.7329) | Val: 12.80% (loss: 4.7171) | LR: 0.297852 | Best: 4.10%
+Epoch 3/80  | Train: 17.19% (loss: 5.1423) | Val: 20.48% (loss: 4.2599) | LR: 0.535250 | Best: 12.80%
+Epoch 4/80  | Train: 24.98% (loss: 4.7355) | Val: 22.25% (loss: 4.1376) | LR: 0.727071 | Best: 20.48%
+Epoch 5/80  | Train: 30.28% (loss: 4.4707) | Val: 31.80% (loss: 3.5105) | LR: 0.800000 | Best: 22.25%
+Epoch 6/80  | Train: 33.94% (loss: 4.2980) | Val: 37.22% (loss: 3.3079) | LR: 0.799647 | Best: 31.80%
+Epoch 7/80  | Train: 36.64% (loss: 4.1789) | Val: 38.42% (loss: 3.2007) | LR: 0.798593 | Best: 37.22%
+Epoch 8/80  | Train: 38.66% (loss: 4.0810) | Val: 38.09% (loss: 3.2430) | LR: 0.796839 | Best: 38.42%
+Epoch 9/80  | Train: 40.12% (loss: 4.0200) | Val: 30.46% (loss: 3.5563) | LR: 0.794389 | Best: 38.42%
+Epoch 10/80 | Train: 41.43% (loss: 3.9695) | Val: 40.47% (loss: 3.2703) | LR: 0.791248 | Best: 38.42%
+Epoch 11/80 | Train: 42.22% (loss: 3.9131) | Val: 34.14% (loss: 3.5022) | LR: 0.787420 | Best: 40.47%
+Epoch 12/80 | Train: 43.27% (loss: 3.8770) | Val: 42.91% (loss: 3.1059) | LR: 0.782912 | Best: 40.47%
+Epoch 13/80 | Train: 44.23% (loss: 3.8484) | Val: 45.90% (loss: 2.8642) | LR: 0.777733 | Best: 42.91%
+Epoch 14/80 | Train: 44.74% (loss: 3.8170) | Val: 42.86% (loss: 3.0420) | LR: 0.771891 | Best: 45.90%
+Epoch 15/80 | Train: 45.23% (loss: 3.7805) | Val: 44.56% (loss: 2.9304) | LR: 0.765397 | Best: 45.90%
+Epoch 16/80 | Train: 45.59% (loss: 3.7639) | Val: 47.52% (loss: 2.7465) | LR: 0.758261 | Best: 45.90%
+Epoch 17/80 | Train: 46.27% (loss: 3.7361) | Val: 44.06% (loss: 3.0460) | LR: 0.750497 | Best: 47.52%
+Epoch 18/80 | Train: 46.49% (loss: 3.7219) | Val: 48.12% (loss: 2.8827) | LR: 0.742118 | Best: 47.52%
+Epoch 19/80 | Train: 47.01% (loss: 3.7156) | Val: 48.37% (loss: 2.6983) | LR: 0.733139 | Best: 48.12%
+Epoch 20/80 | Train: 47.29% (loss: 3.6821) | Val: 48.09% (loss: 2.7791) | LR: 0.723576 | Best: 48.37%
+Epoch 21/80 | Train: 47.38% (loss: 3.6632) | Val: 46.52% (loss: 2.8622) | LR: 0.713444 | Best: 48.37%
+Epoch 22/80 | Train: 48.01% (loss: 3.6375) | Val: 49.15% (loss: 2.6545) | LR: 0.702763 | Best: 48.37%
+Epoch 23/80 | Train: 48.15% (loss: 3.6548) | Val: 46.27% (loss: 2.9501) | LR: 0.691551 | Best: 49.15%
+Epoch 24/80 | Train: 48.40% (loss: 3.6394) | Val: 51.48% (loss: 2.6219) | LR: 0.679828 | Best: 49.15%
+Epoch 25/80 | Train: 48.60% (loss: 3.6211) | Val: 47.93% (loss: 2.7022) | LR: 0.667613 | Best: 51.48%
+Epoch 26/80 | Train: 48.87% (loss: 3.6065) | Val: 48.68% (loss: 2.7762) | LR: 0.654929 | Best: 51.48%
+Epoch 27/80 | Train: 49.25% (loss: 3.5907) | Val: 48.16% (loss: 2.7687) | LR: 0.641798 | Best: 51.48%
+Epoch 28/80 | Train: 49.36% (loss: 3.5756) | Val: 44.88% (loss: 2.9010) | LR: 0.628242 | Best: 51.48%
+Epoch 29/80 | Train: 49.55% (loss: 3.5750) | Val: 48.95% (loss: 2.8424) | LR: 0.614286 | Best: 51.48%
+Epoch 30/80 | Train: 49.78% (loss: 3.5771) | Val: 50.42% (loss: 2.6880) | LR: 0.599954 | Best: 51.48%
+Epoch 31/80 | Train: 50.06% (loss: 3.5568) | Val: 52.79% (loss: 2.6212) | LR: 0.585272 | Best: 51.48%
+Epoch 32/80 | Train: 50.27% (loss: 3.5617) | Val: 52.23% (loss: 2.6089) | LR: 0.570264 | Best: 52.79%
+Epoch 33/80 | Train: 50.36% (loss: 3.5382) | Val: 50.69% (loss: 2.9815) | LR: 0.554958 | Best: 52.79%
+Epoch 34/80 | Train: 50.72% (loss: 3.5429) | Val: 52.33% (loss: 2.6036) | LR: 0.539380 | Best: 52.79%
+Epoch 35/80 | Train: 51.00% (loss: 3.5296) | Val: 45.04% (loss: 3.0283) | LR: 0.523557 | Best: 52.79%
+Epoch 36/80 | Train: 51.19% (loss: 3.5088) | Val: 53.34% (loss: 2.5005) | LR: 0.507517 | Best: 52.79%
+Epoch 37/80 | Train: 51.30% (loss: 3.4970) | Val: 52.48% (loss: 2.6411) | LR: 0.491289 | Best: 53.34%
+Epoch 38/80 | Train: 51.48% (loss: 3.4976) | Val: 50.62% (loss: 2.7025) | LR: 0.474901 | Best: 53.34%
+Epoch 39/80 | Train: 51.81% (loss: 3.4785) | Val: 54.65% (loss: 2.4571) | LR: 0.458382 | Best: 53.34%
+Epoch 40/80 | Train: 51.96% (loss: 3.4656) | Val: 44.18% (loss: 3.1269) | LR: 0.441759 | Best: 54.65%
+Epoch 41/80 | Train: 52.13% (loss: 3.4554) | Val: 55.88% (loss: 2.4946) | LR: 0.425064 | Best: 54.65%
+Epoch 42/80 | Train: 52.57% (loss: 3.4334) | Val: 57.38% (loss: 2.4248) | LR: 0.408325 | Best: 55.88%
+Epoch 43/80 | Train: 52.87% (loss: 3.4313) | Val: 54.50% (loss: 2.4945) | LR: 0.391571 | Best: 57.38%
+Epoch 44/80 | Train: 53.09% (loss: 3.4199) | Val: 54.82% (loss: 2.5789) | LR: 0.374832 | Best: 57.38%
+Epoch 45/80 | Train: 53.42% (loss: 3.4027) | Val: 55.25% (loss: 2.5078) | LR: 0.358137 | Best: 57.38%
+Epoch 46/80 | Train: 53.76% (loss: 3.3832) | Val: 54.87% (loss: 2.6592) | LR: 0.341516 | Best: 57.38%
+Epoch 47/80 | Train: 54.01% (loss: 3.3841) | Val: 55.98% (loss: 2.4653) | LR: 0.324997 | Best: 57.38%
+Epoch 48/80 | Train: 54.28% (loss: 3.3467) | Val: 56.34% (loss: 2.5514) | LR: 0.308609 | Best: 57.38%
+Epoch 49/80 | Train: 54.79% (loss: 3.3464) | Val: 57.16% (loss: 2.3240) | LR: 0.292382 | Best: 57.38%
+Epoch 50/80 | Train: 55.24% (loss: 3.3406) | Val: 58.56% (loss: 2.3139) | LR: 0.276344 | Best: 57.38%
+Epoch 51/80 | Train: 55.30% (loss: 3.2999) | Val: 58.69% (loss: 2.1962) | LR: 0.260523 | Best: 58.56%
+Epoch 52/80 | Train: 55.84% (loss: 3.2987) | Val: 58.90% (loss: 2.2376) | LR: 0.244947 | Best: 58.69%
+Epoch 53/80 | Train: 56.16% (loss: 3.2701) | Val: 58.55% (loss: 2.4177) | LR: 0.229642 | Best: 58.90%
+Epoch 54/80 | Train: 56.66% (loss: 3.2573) | Val: 60.15% (loss: 2.1418) | LR: 0.214636 | Best: 58.90%
+Epoch 55/80 | Train: 56.99% (loss: 3.2387) | Val: 56.76% (loss: 2.4304) | LR: 0.199956 | Best: 60.15%
+Epoch 56/80 | Train: 57.68% (loss: 3.2199) | Val: 60.70% (loss: 2.2412) | LR: 0.185626 | Best: 60.15%
+Epoch 57/80 | Train: 57.98% (loss: 3.1822) | Val: 60.89% (loss: 2.2467) | LR: 0.171673 | Best: 60.70%
+Epoch 58/80 | Train: 58.46% (loss: 3.1777) | Val: 59.49% (loss: 2.2983) | LR: 0.158120 | Best: 60.89%
+Epoch 59/80 | Train: 58.98% (loss: 3.1497) | Val: 62.45% (loss: 2.1405) | LR: 0.144992 | Best: 60.89%
+Epoch 60/80 | Train: 59.56% (loss: 3.1234) | Val: 62.51% (loss: 2.0226) | LR: 0.132311 | Best: 62.45%
+Epoch 61/80 | Train: 60.37% (loss: 3.0571) | Val: 63.89% (loss: 2.0104) | LR: 0.120099 | Best: 62.51%
+Epoch 62/80 | Train: 60.83% (loss: 3.0614) | Val: 63.70% (loss: 2.1095) | LR: 0.108379 | Best: 63.89%
+Epoch 63/80 | Train: 61.62% (loss: 3.0292) | Val: 64.61% (loss: 2.0892) | LR: 0.097170 | Best: 63.89%
+Epoch 64/80 | Train: 62.21% (loss: 2.9872) | Val: 65.92% (loss: 2.0017) | LR: 0.086492 | Best: 64.61%
+Epoch 65/80 | Train: 62.92% (loss: 2.9658) | Val: 66.75% (loss: 2.1408) | LR: 0.076365 | Best: 65.92%
+Epoch 66/80 | Train: 63.71% (loss: 2.9220) | Val: 66.40% (loss: 1.9343) | LR: 0.066805 | Best: 66.75%
+Epoch 67/80 | Train: 64.46% (loss: 2.8923) | Val: 68.47% (loss: 1.9750) | LR: 0.057829 | Best: 66.75%
+Epoch 68/80 | Train: 65.25% (loss: 2.8494) | Val: 69.10% (loss: 1.9270) | LR: 0.049455 | Best: 68.47%
+Epoch 69/80 | Train: 66.35% (loss: 2.8026) | Val: 69.60% (loss: 1.8608) | LR: 0.041694 | Best: 69.10%
+Epoch 70/80 | Train: 66.98% (loss: 2.7837) | Val: 70.31% (loss: 1.9258) | LR: 0.034563 | Best: 69.60%
+Epoch 71/80 | Train: 67.95% (loss: 2.7427) | Val: 71.96% (loss: 1.7317) | LR: 0.028073 | Best: 70.31%
+Epoch 72/80 | Train: 68.76% (loss: 2.7056) | Val: 72.29% (loss: 1.7135) | LR: 0.022235 | Best: 71.96%
+Epoch 73/80 | Train: 69.71% (loss: 2.6689) | Val: 72.64% (loss: 1.8165) | LR: 0.017060 | Best: 72.29%
+Epoch 74/80 | Train: 70.39% (loss: 2.6232) | Val: 73.62% (loss: 1.7096) | LR: 0.012557 | Best: 72.64%
+Epoch 75/80 | Train: 71.43% (loss: 2.5775) | Val: 73.99% (loss: 1.6781) | LR: 0.008733 | Best: 73.62%
+Epoch 76/80 | Train: 71.86% (loss: 2.5715) | Val: 74.22% (loss: 1.8616) | LR: 0.005596 | Best: 73.99%
+Epoch 77/80 | Train: 72.33% (loss: 2.5481) | Val: 74.63% (loss: 1.8290) | LR: 0.003151 | Best: 74.22%
+Epoch 78/80 | Train: 72.82% (loss: 2.5150) | Val: 75.13% (loss: 1.6766) | LR: 0.001402 | Best: 74.63%
+Epoch 79/80 | Train: 72.91% (loss: 2.5019) | Val: 75.09% (loss: 1.6600) | LR: 0.000352 | Best: 75.13%
+================================================================================
+Training completed successfully! Final accuracy: 75.13%
+================================================================================
+```
+
 ## 📦 Package Versions (October 2025)
 
 ### Core Dependencies
