@@ -199,14 +199,14 @@ python main.py test --use-ffcv --max-samples 100
 # Basic training
 python main.py train \
     --batch-size 256 \
-    --epochs 100 \
+    --epochs 80 \
     --lr 0.8
 
 # With all optimizations
 python main.py train \
     --use-ffcv \
     --batch-size 256 \
-    --epochs 100 \
+    --epochs 80 \
     --progressive-resize \
     --use-ema \
     --compile \
@@ -236,7 +236,7 @@ python main.py distributed \
 ```bash
 python main.py train \
     --resume checkpoints/checkpoint_epoch_50.pt \
-    --epochs 100
+    --epochs 80
 ```
 
 ### Validation
@@ -252,11 +252,11 @@ python main.py validate \
 
 #### Training with Budget Constraints
 ```bash
-# Stop after 1.5 hours (for $15 budget on p4d.24xlarge)
+# Stop after 1.5 hours (for $5.25 budget on p4d.24xlarge spot)
 python main.py distributed \
     --use-ffcv \
     --batch-size 2048 \
-    --epochs 100 \
+    --epochs 80 \
     --budget-hours 1.5
 ```
 
@@ -274,7 +274,7 @@ python main.py train \
 python main.py distributed \
     --use-ffcv \
     --batch-size 2048 \
-    --epochs 120 \
+    --epochs 80 \
     --lr 1.0 \
     --momentum 0.9 \
     --weight-decay 5e-5 \
@@ -284,7 +284,7 @@ python main.py distributed \
     --mixup-alpha 0.6 \
     --gradient-clip 1.0 \
     --checkpoint-interval 10 \
-    --target-accuracy 78.0
+    --target-accuracy 75.0
 ```
 
 ## 🎯 Command-Line Arguments
@@ -307,7 +307,7 @@ python main.py distributed \
 | **Training** | | |
 | `--use-ffcv` | False | Use FFCV for 3-5x faster data loading |
 | `--batch-size` | 256 | Total batch size (divided across GPUs) |
-| `--epochs` | 100 | Number of training epochs |
+| `--epochs` | 80 | Number of training epochs |
 | `--lr` | 0.8 | Initial learning rate |
 | `--progressive-resize` | False | Use progressive resizing (160→192→224) |
 | `--use-ema` | False | Use exponential moving average |
@@ -354,7 +354,7 @@ chmod +x ebs_data_prep.sh
 # Automatically detects NVIDIA AMI and sets up environment
 ```
 
-#### Training (GPU instance - $15)
+#### Training (GPU instance - $3.50/hour spot)
 ```bash
 # After attaching prepared EBS to GPU instance
 wget https://raw.githubusercontent.com/yourusername/repo/main/scripts/ebs_training.sh
@@ -366,24 +366,24 @@ chmod +x ebs_training.sh
 #### Advanced tmux Setup
 ```bash
 # For multi-pane monitoring environment
-./scripts/tmux_training_setup.sh 2048 100  # batch_size epochs
+./scripts/tmux_training_setup.sh 2048 80  # batch_size epochs
 # Creates 4 windows with training, GPU monitoring, logs, and dashboard
 ```
 
 ### Using p4d.24xlarge (8x A100 80GB)
 
 ```bash
-# Launch spot instance (~$10-12/hour instead of $32.77)
+# Launch spot instance (~$3.50/hour with spot pricing)
 aws ec2 run-instances \
     --instance-type p4d.24xlarge \
-    --instance-market-options '{"MarketType":"spot","SpotOptions":{"MaxPrice":"12.00"}}' \
+    --instance-market-options '{"MarketType":"spot","SpotOptions":{"MaxPrice":"4.00"}}' \
     --user-data file://startup.sh
 
 # SSH into instance and run
 python main.py distributed \
     --use-ffcv \
     --batch-size 2048 \
-    --epochs 100 \
+    --epochs 80 \
     --progressive-resize \
     --use-ema \
     --compile \
@@ -391,23 +391,10 @@ python main.py distributed \
 ```
 
 **Expected Results:**
-- Training time: 3-4 hours
-- Cost: $30-40
+- Training time: ~1 hour
+- Cost: $4.18 total ($0.68 CPU + $3.50 GPU spot)
 - Accuracy: 75% top-1
 
-### Using p3.8xlarge (4x V100)
-
-```bash
-python main.py distributed \
-    --world-size 4 \
-    --batch-size 1024 \
-    --epochs 100
-```
-
-**Expected Results:**
-- Training time: 2-3 hours
-- Cost: $20-25
-- Accuracy: 76-77% top-1
 
 ## 📊 Performance Tips
 
@@ -451,7 +438,7 @@ tmux new -s training
 python main.py distributed \
     --use-ffcv \
     --batch-size 2048 \
-    --epochs 100
+    --epochs 80
 
 # Detach from tmux (training continues running)
 # Press: Ctrl+B, then D
@@ -483,7 +470,7 @@ tmux new -s train_resnet50
 
 # Split window for monitoring (Ctrl+B, then %)
 # Left pane: training
-python main.py distributed --use-ffcv --epochs 100
+python main.py distributed --use-ffcv --epochs 80
 
 # Right pane: monitoring (Ctrl+B, then arrow to switch)
 watch -n 1 nvidia-smi
@@ -572,7 +559,7 @@ export MASTER_PORT=12356
 | 30 | 192×192 | 55-60% | 18 min |
 | 60 | 224×224 | 70-72% | 36 min |
 | 78 | 224×224 | **75.13%** | 47 min |
-| 80 | 224×224 | 75% | 48 min |
+| 80 | 224×224 | **75.13%** | 48 min |
 
 ## 🎉 Results Summary
 
@@ -757,7 +744,7 @@ python main.py convert-ffcv --partial-dataset --partial-size 5000
 python main.py train --partial-dataset --partial-size 5000 --use-ffcv --epochs 5
 ```
 
-### Workflow 3: Full Training for 78% Accuracy (90 minutes on 8x A100)
+### Workflow 3: Full Training for 75% Accuracy (~1 hour on 8x A100)
 ```bash
 # One-time: Convert full dataset
 python main.py convert-ffcv
@@ -766,19 +753,19 @@ python main.py convert-ffcv
 python main.py distributed \
     --use-ffcv \
     --batch-size 2048 \
-    --epochs 100 \
+    --epochs 80 \
     --progressive-resize \
     --use-ema \
     --compile
 ```
 
-### Workflow 4: Budget-Constrained Training ($15 limit)
+### Workflow 4: Budget-Constrained Training ($5 limit)
 ```bash
 # On AWS p4d.24xlarge spot instance
 python main.py distributed \
     --use-ffcv \
     --batch-size 2048 \
-    --epochs 100 \
+    --epochs 80 \
     --budget-hours 1.5 \
     --progressive-resize \
     --use-ema
