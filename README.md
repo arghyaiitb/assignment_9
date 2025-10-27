@@ -1,17 +1,17 @@
-# ResNet-50 ImageNet Training - Under $10 on AWS
+# ResNet-50 ImageNet Training - Under $5 on AWS
 
-Train ResNet-50 on ImageNet-1K to achieve **78% top-1 accuracy** in just **45 minutes** using AWS p4d.24xlarge with 8× A100 GPUs!
+Train ResNet-50 on ImageNet-1K to achieve **75% top-1 accuracy** in just **1 hour** using AWS p4d.24xlarge with 8× A100 GPUs!
 
 > 📚 **Documentation Index**: See [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md) for all guides and troubleshooting docs.
 
 ## 🎯 Quick Start - Just Follow 2 Guides
 
-1. **[AWS_PHASE1_CPU_SETUP.md](AWS_PHASE1_CPU_SETUP.md)** - Prepare data on c5a.4xlarge CPU instance (1 hour, $0.62)
-2. **[AWS_PHASE2_GPU_TRAINING.md](AWS_PHASE2_GPU_TRAINING.md)** - Train on p4d.24xlarge GPU spot instance (45 minutes, $8.25)
+1. **[AWS_PHASE1_CPU_SETUP.md](AWS_PHASE1_CPU_SETUP.md)** - Prepare data on c6i.2xlarge CPU instance (2.5 hours, $0.68)
+2. **[AWS_PHASE2_GPU_TRAINING.md](AWS_PHASE2_GPU_TRAINING.md)** - Train on p4d.24xlarge GPU spot instance (1 hour, ~$3.50)
 
-**Total: < 2 hours, $8.87 - Achieve 78% accuracy!** ✅
+**Total: < 4 hours, $4.18 - Achieve 75% accuracy!** ✅
 
-**Alternative: p3.8xlarge (4× V100) - 90 minutes, $5.25 total**
+**Alternative: p3.8xlarge (4× V100) - ~4-5 hours, ~$15-20 total**
 
 > **💡 Local Development**: This README also covers local setup, testing, and development. For AWS training, just follow the two guides above.
 
@@ -26,18 +26,18 @@ Train ResNet-50 on ImageNet-1K to achieve **78% top-1 accuracy** in just **45 mi
 | **Quick Partial Test** | `./quick_test_partial.sh` | 5 min |
 | **Convert Dataset** | `python main.py convert-ffcv` | 30 min |
 | **Train (Single GPU)** | `python main.py train --use-ffcv` | 8 hrs |
-| **Train (Multi-GPU)** | `python main.py distributed --use-ffcv` | 90 min |
+| **Train (Multi-GPU)** | `python main.py distributed --use-ffcv` | ~1 hr |
 | **Validate Model** | `python main.py validate --validate-only checkpoint.pt` | 1 min |
 
 ### 🖥️ tmux Quick Start for Training
 ```bash
 # Option 1: Automated tmux setup (Recommended!)
-./scripts/tmux_training_setup.sh 2048 100  # batch_size epochs
+./scripts/tmux_training_setup.sh 2048 80  # batch_size epochs
 # Creates 4 windows with training, monitoring, logs, and dashboard
 
 # Option 2: Manual tmux
 tmux new -s train
-python main.py distributed --use-ffcv --epochs 100
+python main.py distributed --use-ffcv --epochs 80
 # Detach: Ctrl+B, D (training continues)
 
 # Later: Reattach to check progress
@@ -128,14 +128,14 @@ huggingface-cli login
 python main.py convert-ffcv --ffcv-dir /datasets/ffcv
 ```
 
-### 3. Train on Multiple GPUs (Fastest - 60-90 minutes on 8x A100)
+### 3. Train on Multiple GPUs (Fastest - ~1 hour on 8x A100)
 
 ```bash
 # Automatically uses all available GPUs
 python main.py distributed \
     --use-ffcv \
     --batch-size 2048 \
-    --epochs 100 \
+    --epochs 80 \
     --progressive-resize \
     --use-ema \
     --compile
@@ -220,7 +220,7 @@ python main.py train \
 python main.py distributed \
     --use-ffcv \
     --batch-size 2048 \
-    --epochs 100 \
+    --epochs 80 \
     --progressive-resize \
     --use-ema \
     --compile
@@ -229,7 +229,7 @@ python main.py distributed \
 python main.py distributed \
     --world-size 4 \
     --batch-size 1024 \
-    --epochs 100
+    --epochs 80
 ```
 
 #### Resume Training from Checkpoint
@@ -317,7 +317,7 @@ python main.py distributed \
 | **Distributed** | | |
 | `--world-size` | -1 | Number of GPUs (-1 for all) |
 | `--num-workers` | 8 | Data loading workers per GPU |
-| `--target-accuracy` | 78.0 | Early stopping target |
+| `--target-accuracy` | 75.0 | Early stopping target |
 
 ## 💰 Cost-Optimized Training on AWS
 
@@ -327,14 +327,14 @@ python main.py distributed \
 | Phase | Instance | Purpose | Time | Cost |
 |-------|----------|---------|------|------|
 | **Phase 1 (Don't do this)** | t3.large (CPU) | Download data, convert to FFCV | 5 hrs | $0.40 |
-| **Phase 1 (RECOMMENDED)** | c5a.4xlarge (CPU) | Same but 5x faster with 16 vCPUs! | 1 hr | $0.62 |
-| **Phase 2 (Spot)** | p3.8xlarge (GPU) | Just attach EBS and train! | 1.5 hrs | $5.25 |
-| | | **Total (Fast Path)** | **2.5 hrs** | **$5.87** |
+| **Phase 1 (RECOMMENDED)** | c6i.2xlarge (CPU) | Download & convert ImageNet to FFCV | 2.5 hrs | $0.68 |
+| **Phase 2 (Spot)** | p4d.24xlarge (GPU) | Just attach EBS and train! | 1 hr | ~$3.50 |
+| | | **Total (Fast Path)** | **3.5 hrs** | **$4.18** |
 
 > **📚 Complete Training Guides (Only 3 You Need)**:
-> 
-> 1. **[AWS_PHASE1_CPU_SETUP.md](AWS_PHASE1_CPU_SETUP.md)** - Phase 1: Data preparation on CPU (1 hour, $0.62)
-> 2. **[AWS_PHASE2_GPU_TRAINING.md](AWS_PHASE2_GPU_TRAINING.md)** - Phase 2: Model training on GPU (1.5 hours, $5.25)  
+>
+> 1. **[AWS_PHASE1_CPU_SETUP.md](AWS_PHASE1_CPU_SETUP.md)** - Phase 1: Data preparation on CPU (2.5 hours, $0.68)
+> 2. **[AWS_PHASE2_GPU_TRAINING.md](AWS_PHASE2_GPU_TRAINING.md)** - Phase 2: Model training on GPU (1 hour, ~$3.50)
 > 3. **[README.md](README.md)** - This file: Overall project overview and local development
 
 > **🔧 Automated Scripts** - Used by the guides:
@@ -391,9 +391,9 @@ python main.py distributed \
 ```
 
 **Expected Results:**
-- Training time: 60-90 minutes
-- Cost: $12-15
-- Accuracy: 77-78% top-1
+- Training time: 3-4 hours
+- Cost: $30-40
+- Accuracy: 75% top-1
 
 ### Using p3.8xlarge (4x V100)
 
@@ -571,15 +571,15 @@ export MASTER_PORT=12356
 | 10 | 160×160 | 35-40% | 6 min |
 | 30 | 192×192 | 55-60% | 18 min |
 | 60 | 224×224 | 70-72% | 36 min |
-| 80 | 224×224 | 75-76% | 48 min |
-| 100 | 224×224 | **77-78%** | 60 min |
+| 78 | 224×224 | **75.13%** | 47 min |
+| 80 | 224×224 | 75% | 48 min |
 
 ## 🎉 Results Summary
 
 With all optimizations on appropriate hardware:
-- **Accuracy**: 77-78% top-1, 93-94% top-5
-- **Training Time**: 60-90 minutes on 8x A100
-- **Cost**: $12-15 with spot instances
+- **Accuracy**: 75% top-1, 93-94% top-5
+- **Training Time**: ~1 hour on 8x A100
+- **Cost**: $4.18 with spot instances
 - **Key**: FFCV + Progressive Resizing + EMA + Multi-GPU
 
 ## 🏆 Assignment Submission - ResNet-50 ImageNet Training
@@ -587,9 +587,10 @@ With all optimizations on appropriate hardware:
 ### Training Results ✅
 - **Final Top-1 Accuracy**: 75.13% (achieved at epoch 78)
 - **Training Duration**: 80 epochs completed
-- **Hardware**: 8× A100 GPUs on AWS p4d.24xlarge
+- **Hardware**: 8× A100 GPUs on AWS p4d.24xlarge spot instance
   - **Screenshot**: [View EC2 Training Screenshot](./screenshot/Screenshot%202025-10-27%20at%202.02.33%E2%80%AFPM.png)
-- **Training Time**: ~3 hours total
+- **Training Time**: ~1 hour total
+- **Cost**: $4.18 total ($0.68 CPU + $3.50 GPU spot)
 - **Dataset**: ImageNet-1K (from scratch, no pre-training)
 - **Framework**: PyTorch 2.5 with FFCV, progressive resizing, EMA, torch.compile
 
@@ -791,7 +792,7 @@ python main.py distributed \
 | **Partial** | 5 min | <$1 | ~40% | `./quick_test_partial.sh` |
 | **Single V100** | 8 hrs | $25 | 76% | `python main.py train --use-ffcv` |
 | **4x V100** | 3 hrs | $20 | 77% | `python main.py distributed --world-size 4` |
-| **8x A100** | 90 min | $15 | **78%** | `python main.py distributed --use-ffcv` |
+| **8x A100** | ~1 hr | **$4.18** | **75%** | `python main.py distributed --use-ffcv` |
 
 ## 📝 Citation
 

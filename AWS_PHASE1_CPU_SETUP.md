@@ -1,8 +1,8 @@
-# Phase 1: CPU Data Preparation (1 Hour, $0.62)
+# Phase 1: CPU Data Preparation (2.5 Hours, $0.68)
 
 > **Purpose**: Download ImageNet, convert to FFCV format, prepare everything for GPU training
-> **Time**: 1 hour with c5a.4xlarge (vs 5 hours with t3.large)
-> **Cost**: $0.62 total
+> **Time**: 2.5 hours with c6i.2xlarge (vs 5 hours with t3.large)
+> **Cost**: $0.68 total
 > **Output**: 400GB EBS volume with all data ready for training
 
 ## 📋 Prerequisites
@@ -31,7 +31,7 @@ aws ec2 create-volume \
 export EBS_VOLUME_ID=vol-xxxxxxxxxxxxx  # Replace with your actual ID
 ```
 
-### Step 2: Launch c5a.4xlarge Instance (CPU-Optimized)
+### Step 2: Launch c6i.2xlarge Instance (CPU-Optimized)
 
 ```bash
 # Set your configuration
@@ -39,11 +39,11 @@ export KEY_NAME=your-key-pair        # Your SSH key
 export SUBNET_ID=subnet-xxxxx       # Must be in us-east-1a (same as EBS!)
 export SECURITY_GROUP=sg-xxxxx      # Your security group
 
-# Launch c5a.4xlarge with Ubuntu 22.04 (CPU-optimized AMI)
+# Launch c6i.2xlarge with Ubuntu 22.04 (CPU-optimized AMI)
 INSTANCE_ID=$(aws ec2 run-instances \
   --region us-east-1 \
   --image-id ami-0866a3c8686eaeeba \  # Ubuntu 22.04 LTS for us-east-1
-  --instance-type c5a.4xlarge \
+  --instance-type c6i.2xlarge \
   --key-name $KEY_NAME \
   --subnet-id $SUBNET_ID \
   --security-group-ids $SECURITY_GROUP \
@@ -165,21 +165,21 @@ aws ec2 terminate-instances --region us-east-1 --instance-ids $INSTANCE_ID
 echo "✅ Phase 1 complete! Your data is on EBS: $EBS_VOLUME_ID"
 ```
 
-## 📊 Why c5a.4xlarge?
+## 📊 Why c6i.2xlarge?
 
 | Instance | vCPUs | Time | Cost | Why Choose? |
 |----------|-------|------|------|-------------|
 | t3.large | 2 | 5 hrs | $0.40 | ❌ Too slow, CPU throttles |
 | t3.2xlarge | 8 | 2 hrs | $0.67 | ❌ Burstable = unreliable |
 | c5.2xlarge | 8 | 1.5 hrs | $0.51 | ✅ Good option |
-| **c5a.4xlarge** | **16** | **1 hr** | **$0.62** | **🏆 BEST - 5x faster!** |
+| **c6i.2xlarge** | **8** | **2.5 hrs** | **$0.68** | **🏆 Cost-effective balance** |
 
-**c5a.4xlarge** gives you:
-- 16 vCPUs for parallel FFCV conversion
+**c6i.2xlarge** gives you:
+- 8 vCPUs for reliable FFCV conversion
 - Consistent performance (no throttling)
-- 10 Gbps network for fast downloads
-- Completes in 1 hour instead of 5
-- Only $0.22 more than slow option
+- 12.5 Gbps network for fast downloads
+- Balanced performance and cost
+- Reliable alternative to burstable instances
 
 ## 🔧 What the Script Does
 
@@ -232,12 +232,12 @@ mkdir -p $FFCV_DIR $HF_HOME
 
 The setup is optimized for speed:
 
-1. **16 CPU cores**: c5a.4xlarge processes data in parallel
+1. **8 CPU cores**: c6i.2xlarge provides reliable processing
 2. **XFS filesystem**: Faster than ext4 for large files
 3. **noatime mount**: Skips unnecessary file access updates
 4. **10K IOPS EBS**: Fast disk I/O
 5. **HF_TRANSFER**: Accelerated HuggingFace downloads
-6. **16 FFCV workers**: Maximum parallel conversion
+6. **8 FFCV workers**: Balanced parallel conversion
 
 ## 🆘 Troubleshooting
 
@@ -289,7 +289,7 @@ The setup is optimized for speed:
 ## ✅ Completion Checklist
 
 - [ ] Created 400GB EBS volume
-- [ ] Launched c5a.4xlarge instance
+- [ ] Launched c6i.2xlarge instance
 - [ ] Attached EBS and mounted at /data
 - [ ] Installed dependencies with script
 - [ ] Logged into HuggingFace
@@ -305,4 +305,4 @@ Proceed to **[AWS_PHASE2_GPU_TRAINING.md](AWS_PHASE2_GPU_TRAINING.md)** to start
 
 ---
 
-**Remember**: The entire Phase 1 takes just 1 hour with c5a.4xlarge. Don't waste 5 hours with a slow instance!
+**Remember**: The entire Phase 1 takes 2.5 hours with c6i.2xlarge. Don't waste 5 hours with a slow instance!
